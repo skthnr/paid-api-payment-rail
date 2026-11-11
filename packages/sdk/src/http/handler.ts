@@ -1,239 +1,319 @@
 /**
- * @fileoverview HTTP 402 Response Handler
- * @copyright Copyright (c) 2024-2026 nirholas
- * @license MIT
+ * x402 v2 HTTP header handling.
+ *
+ * The transport carries base64-encoded JSON in PAYMENT-REQUIRED,
+ * PAYMENT-SIGNATURE and PAYMENT-RESPONSE. Decoding is strict: invalid base64,
+ * non-JSON payloads, wrong versions and malformed accepts entries throw a
+ * PaymentHeaderError instead of being coerced.
  */
 
+import {
+  PAYMENT_REQUIRED_HEADER,
+  PAYMENT_RESPONSE_HEADER,
+  PAYMENT_SIGNATURE_HEADER,
+  X402_VERSION,
+} from '../constants.js';
+import { isRecord } from '../guards.js';
 import type {
-  HTTP402Response,
-  HTTP402ParseResult,
-  PaymentRequest,
-  X402Token,
-  X402Chain,
-} from '../types';
-import { X402Error, X402ErrorCode } from '../types';
-import { X402_VERSION } from '../constants';
+  AcceptsEntry,
+  PaymentPayload,
+  PaymentRequired,
+  SettlementResponse,
+} from '../types.js';
 
-/**
- * HTTP 402 Payment Required response handler
- */
-export class HTTP402Handler {
-  /**
-   * Parse a 402 response to extract payment details
-   */
-  static parse(response: HTTP402Response): HTTP402ParseResult {
-    if (response.status !== 402) {
-      return {
-        isPaymentRequired: false,
-        error: 'Response is not a 402 Payment Required',
-      };
-    }
+export class PaymentHeaderError extends Error {
+  public readonly header: string | null;
 
-    const authHeader = response.headers['www-authenticate'];
-    if (!authHeader) {
-      return {
-        isPaymentRequired: false,
-        error: 'Missing WWW-Authenticate header',
-      };
-    }
-
-    if (!authHeader.startsWith('X402 ')) {
-      return {
-        isPaymentRequired: false,
-        error: 'Invalid X402 authentication header format',
-      };
-    }
-
-    try {
-      const paymentRequest = this.parseAuthHeader(authHeader);
-      return {
-        isPaymentRequired: true,
-        paymentRequest,
-      };
-    } catch (error) {
-      return {
-        isPaymentRequired: false,
-        error: error instanceof Error ? error.message : 'Failed to parse payment request',
-      };
-    }
-  }
-
-  /**
-   * Check if a fetch Response is a 402 payment required
-   */
-  static async fromFetchResponse(response: Response): Promise<HTTP402ParseResult> {
-    if (response.status !== 402) {
-      return { isPaymentRequired: false };
-    }
-
-    const authHeader = response.headers.get('www-authenticate');
-    if (!authHeader) {
-      return {
-        isPaymentRequired: false,
-        error: 'Missing WWW-Authenticate header',
-      };
-    }
-
-    const http402: HTTP402Response = {
-      status: 402,
-      headers: {
-        'www-authenticate': authHeader,
-        'content-type': response.headers.get('content-type') ?? undefined,
-        'x-payment-version': response.headers.get('x-payment-version') ?? undefined,
-      },
-      body: await response.json().catch(() => undefined),
-    };
-
-    return this.parse(http402);
-  }
-
-  /**
-   * Create a 402 response for servers
-   */
-  static createResponse(
-    request: PaymentRequest,
-    message?: string
-  ): {
-    status: 402;
-    headers: Record<string, string>;
-    body: object;
-  } {
-    const authValue = this.buildAuthHeader(request);
-
-    return {
-      status: 402,
-      headers: {
-        'WWW-Authenticate': authValue,
-        'Content-Type': 'application/json',
-        'X-Payment-Version': String(X402_VERSION),
-      },
-      body: {
-        error: 'Payment Required',
-        message: message ?? `Payment of ${request.amount} ${request.token} required`,
-        payment: {
-          amount: request.amount,
-          token: request.token,
-          chain: request.chain,
-          recipient: request.recipient,
-          resource: request.resource,
-          deadline: request.deadline,
-        },
-      },
-    };
-  }
-
-  /**
-   * Parse WWW-Authenticate header
-   * Format: X402 price="10.00 USDs" chain="arbitrum" recipient="0x..." [resource="..."] [deadline="..."]
-   */
-  private static parseAuthHeader(header: string): PaymentRequest {
-    const params: Record<string, string> = {};
-    const regex = /(\w+)="([^"]+)"/g;
-    let match;
-
-    while ((match = regex.exec(header)) !== null) {
-      params[match[1]!] = match[2]!;
-    }
-
-    // Parse price (format: "10.00 USDs")
-    const priceMatch = params['price']?.match(/^([\d.]+)\s+(\w+)$/);
-    if (!priceMatch) {
-      throw new X402Error(
-        'Invalid price format. Expected "amount token" (e.g., "10.00 USDs")',
-        X402ErrorCode.INVALID_402_RESPONSE
-      );
-    }
-
-    const [, amount, token] = priceMatch;
-
-    // Validate required fields
-    if (!params['chain']) {
-      throw new X402Error('Missing chain in payment request', X402ErrorCode.INVALID_402_RESPONSE);
-    }
-
-    if (!params['recipient']) {
-      throw new X402Error('Missing recipient in payment request', X402ErrorCode.INVALID_402_RESPONSE);
-    }
-
-    // Validate recipient address format
-    if (!/^0x[a-fA-F0-9]{40}$/.test(params['recipient'])) {
-      throw new X402Error('Invalid recipient address format', X402ErrorCode.INVALID_402_RESPONSE);
-    }
-
-    return {
-      amount: amount!,
-      token: token as X402Token,
-      chain: params['chain'] as X402Chain,
-      recipient: params['recipient'] as `0x${string}`,
-      reference: params['reference'],
-      deadline: params['deadline'] ? parseInt(params['deadline'], 10) : undefined,
-      resource: params['resource'],
-      description: params['description'],
-    };
-  }
-
-  /**
-   * Build WWW-Authenticate header from payment request
-   */
-  private static buildAuthHeader(request: PaymentRequest): string {
-    const parts = [
-      `X402 price="${request.amount} ${request.token}"`,
-      `chain="${request.chain}"`,
-      `recipient="${request.recipient}"`,
-    ];
-
-    if (request.resource) {
-      parts.push(`resource="${request.resource}"`);
-    }
-
-    if (request.deadline) {
-      parts.push(`deadline="${request.deadline}"`);
-    }
-
-    if (request.reference) {
-      parts.push(`reference="${request.reference}"`);
-    }
-
-    if (request.description) {
-      parts.push(`description="${request.description}"`);
-    }
-
-    return parts.join(' ');
+  public constructor(message: string, header: string | null = null) {
+    super(message);
+    this.name = 'PaymentHeaderError';
+    this.header = header;
   }
 }
 
+export interface HeaderReader {
+  get(name: string): string | null;
+}
+
+export type HeaderSource = HeaderReader | Record<string, string | string[] | undefined>;
+
+function isHeaderReader(source: HeaderSource): source is HeaderReader {
+  return 'get' in source && typeof source.get === 'function';
+}
+
+function readFromRecord(
+  source: Record<string, string | string[] | undefined>,
+  name: string
+): string | null {
+  const lower = name.toLowerCase();
+  for (const [key, value] of Object.entries(source)) {
+    if (key.toLowerCase() === lower) {
+      return Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
+    }
+  }
+  return null;
+}
+
+export function getHeader(source: HeaderSource, name: string): string | null {
+  return isHeaderReader(source) ? source.get(name) : readFromRecord(source, name);
+}
+
+export function encodeHeaderJson(value: unknown): string {
+  return Buffer.from(JSON.stringify(value), 'utf8').toString('base64');
+}
+
+export function decodeHeaderJson<T>(value: string, headerName: string): T {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    throw new PaymentHeaderError(`${headerName} is empty`, headerName);
+  }
+  const bytes = Buffer.from(trimmed, 'base64');
+  if (bytes.length === 0 || bytes.toString('base64') !== trimmed) {
+    throw new PaymentHeaderError(`${headerName} is not canonical base64`, headerName);
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(bytes.toString('utf8'));
+  } catch {
+    throw new PaymentHeaderError(`${headerName} does not contain JSON`, headerName);
+  }
+  return parsed as T;
+}
+
+function requireString(value: unknown, field: string, headerName: string): string {
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new PaymentHeaderError(`${headerName}: ${field} must be a non-empty string`, headerName);
+  }
+  return value;
+}
+
+function validateAcceptsEntry(entry: unknown, index: number, headerName: string): AcceptsEntry {
+  if (!isRecord(entry)) {
+    throw new PaymentHeaderError(`${headerName}: accepts[${index}] must be an object`, headerName);
+  }
+  if (entry.scheme !== 'exact') {
+    throw new PaymentHeaderError(`${headerName}: accepts[${index}].scheme must be "exact"`, headerName);
+  }
+  const network = requireString(entry.network, `accepts[${index}].network`, headerName);
+  if (!network.startsWith('near:')) {
+    throw new PaymentHeaderError(
+      `${headerName}: accepts[${index}].network must be a NEAR CAIP-2 id`,
+      headerName
+    );
+  }
+  const amount = requireString(entry.amount, `accepts[${index}].amount`, headerName);
+  if (!/^\d+$/.test(amount) || BigInt(amount) <= 0n) {
+    throw new PaymentHeaderError(
+      `${headerName}: accepts[${index}].amount must be a positive integer`,
+      headerName
+    );
+  }
+  const asset = requireString(entry.asset, `accepts[${index}].asset`, headerName);
+  const payTo = requireString(entry.payTo, `accepts[${index}].payTo`, headerName);
+  const maxTimeoutSeconds = entry.maxTimeoutSeconds;
+  if (
+    typeof maxTimeoutSeconds !== 'number' ||
+    !Number.isInteger(maxTimeoutSeconds) ||
+    maxTimeoutSeconds < 1
+  ) {
+    throw new PaymentHeaderError(
+      `${headerName}: accepts[${index}].maxTimeoutSeconds must be a positive integer`,
+      headerName
+    );
+  }
+  let extra: Record<string, unknown> | undefined;
+  if (entry.extra !== undefined) {
+    if (!isRecord(entry.extra)) {
+      throw new PaymentHeaderError(
+        `${headerName}: accepts[${index}].extra must be an object`,
+        headerName
+      );
+    }
+    extra = entry.extra;
+  }
+  const accept: AcceptsEntry = {
+    scheme: 'exact',
+    network,
+    amount,
+    asset,
+    payTo,
+    maxTimeoutSeconds,
+  };
+  if (extra !== undefined) {
+    accept.extra = extra;
+  }
+  return accept;
+}
+
+export function parsePaymentRequired(value: unknown): PaymentRequired {
+  if (!isRecord(value)) {
+    throw new PaymentHeaderError('PAYMENT-REQUIRED must be a JSON object', PAYMENT_REQUIRED_HEADER);
+  }
+  if (value.x402Version !== X402_VERSION) {
+    throw new PaymentHeaderError('PAYMENT-REQUIRED: x402Version must be 2', PAYMENT_REQUIRED_HEADER);
+  }
+  if (!isRecord(value.resource)) {
+    throw new PaymentHeaderError('PAYMENT-REQUIRED: resource must be an object', PAYMENT_REQUIRED_HEADER);
+  }
+  const url = requireString(value.resource.url, 'resource.url', PAYMENT_REQUIRED_HEADER);
+  if (!Array.isArray(value.accepts) || value.accepts.length === 0) {
+    throw new PaymentHeaderError(
+      'PAYMENT-REQUIRED: accepts must be a non-empty array',
+      PAYMENT_REQUIRED_HEADER
+    );
+  }
+  const accepts = value.accepts.map((entry, index) =>
+    validateAcceptsEntry(entry, index, PAYMENT_REQUIRED_HEADER)
+  );
+  if (value.error !== undefined && typeof value.error !== 'string') {
+    throw new PaymentHeaderError('PAYMENT-REQUIRED: error must be a string', PAYMENT_REQUIRED_HEADER);
+  }
+  if (value.extensions !== undefined && !isRecord(value.extensions)) {
+    throw new PaymentHeaderError(
+      'PAYMENT-REQUIRED: extensions must be an object',
+      PAYMENT_REQUIRED_HEADER
+    );
+  }
+
+  const requirement: PaymentRequired = {
+    x402Version: X402_VERSION,
+    resource: { url },
+    accepts,
+  };
+  if (typeof value.error === 'string') {
+    requirement.error = value.error;
+  }
+  const description = value.resource.description;
+  if (typeof description === 'string') {
+    requirement.resource.description = description;
+  }
+  const mimeType = value.resource.mimeType;
+  if (typeof mimeType === 'string') {
+    requirement.resource.mimeType = mimeType;
+  }
+  if (isRecord(value.extensions)) {
+    requirement.extensions = value.extensions;
+  }
+  return requirement;
+}
+
+export interface HeaderResponse {
+  status: number;
+  headers: HeaderSource;
+  body?: unknown;
+}
+
+export function isPaymentRequiredResponse(response: HeaderResponse): boolean {
+  return response.status === 402;
+}
+
 /**
- * Utility function to wrap fetch with 402 handling
+ * Read the payment requirement from a 402 response. Prefers the header, falls
+ * back to a JSON body for proxies that strip unknown headers.
  */
-export async function fetchWith402Handling(
-  url: string | URL,
-  options: RequestInit & {
-    onPaymentRequired?: (request: PaymentRequest) => Promise<string | null>;
-  } = {}
-): Promise<Response> {
-  const { onPaymentRequired, ...fetchOptions } = options;
+export function readPaymentRequired(response: HeaderResponse): PaymentRequired | null {
+  if (!isPaymentRequiredResponse(response)) {
+    return null;
+  }
+  const header = getHeader(response.headers, PAYMENT_REQUIRED_HEADER);
+  if (header) {
+    return parsePaymentRequired(decodeHeaderJson<unknown>(header, PAYMENT_REQUIRED_HEADER));
+  }
+  if (isRecord(response.body)) {
+    return parsePaymentRequired(response.body);
+  }
+  return null;
+}
 
-  let response = await fetch(url, fetchOptions);
+function assertSignedDelegateEnvelope(value: unknown): void {
+  if (!isRecord(value)) {
+    throw new PaymentHeaderError(
+      'PAYMENT-SIGNATURE payload must be an object',
+      PAYMENT_SIGNATURE_HEADER
+    );
+  }
+  const encoded = requireString(
+    value.signedDelegateAction,
+    'payload.signedDelegateAction',
+    PAYMENT_SIGNATURE_HEADER
+  );
+  const bytes = Buffer.from(encoded, 'base64');
+  if (bytes.length === 0 || bytes.toString('base64') !== encoded) {
+    throw new PaymentHeaderError(
+      'PAYMENT-SIGNATURE: signedDelegateAction must be canonical base64',
+      PAYMENT_SIGNATURE_HEADER
+    );
+  }
+}
 
-  if (response.status === 402 && onPaymentRequired) {
-    const parseResult = await HTTP402Handler.fromFetchResponse(response);
+export function buildPaymentSignature(payload: PaymentPayload): Record<string, string> {
+  if (payload.x402Version !== X402_VERSION) {
+    throw new PaymentHeaderError('PaymentPayload.x402Version must be 2', PAYMENT_SIGNATURE_HEADER);
+  }
+  if (!isRecord(payload.resource) || typeof payload.resource.url !== 'string') {
+    throw new PaymentHeaderError('PaymentPayload.resource.url is required', PAYMENT_SIGNATURE_HEADER);
+  }
+  validateAcceptsEntry(payload.accepted, 0, PAYMENT_SIGNATURE_HEADER);
+  assertSignedDelegateEnvelope(payload.payload);
+  return { [PAYMENT_SIGNATURE_HEADER]: encodeHeaderJson(payload) };
+}
 
-    if (parseResult.isPaymentRequired && parseResult.paymentRequest) {
-      // Call payment handler, get payment proof (transaction hash)
-      const paymentProof = await onPaymentRequired(parseResult.paymentRequest);
-
-      if (paymentProof) {
-        // Retry request with payment proof
-        response = await fetch(url, {
-          ...fetchOptions,
-          headers: {
-            ...fetchOptions.headers,
-            'X-Payment-Proof': paymentProof,
-          },
-        });
-      }
+export function parseSettlementResponse(value: unknown): SettlementResponse {
+  if (!isRecord(value)) {
+    throw new PaymentHeaderError('PAYMENT-RESPONSE must be a JSON object', PAYMENT_RESPONSE_HEADER);
+  }
+  if (typeof value.success !== 'boolean') {
+    throw new PaymentHeaderError('PAYMENT-RESPONSE: success must be a boolean', PAYMENT_RESPONSE_HEADER);
+  }
+  const network = requireString(value.network, 'network', PAYMENT_RESPONSE_HEADER);
+  if (!value.success && (typeof value.errorReason !== 'string' || value.errorReason.length === 0)) {
+    throw new PaymentHeaderError(
+      'PAYMENT-RESPONSE: errorReason is required on failure',
+      PAYMENT_RESPONSE_HEADER
+    );
+  }
+  if (
+    value.settlement !== undefined &&
+    value.settlement !== 'settled' &&
+    value.settlement !== 'pending'
+  ) {
+    throw new PaymentHeaderError(
+      'PAYMENT-RESPONSE: settlement must be "settled" or "pending"',
+      PAYMENT_RESPONSE_HEADER
+    );
+  }
+  for (const field of ['payer', 'transaction', 'errorReason'] as const) {
+    if (value[field] !== undefined && typeof value[field] !== 'string') {
+      throw new PaymentHeaderError(
+        `PAYMENT-RESPONSE: ${field} must be a string`,
+        PAYMENT_RESPONSE_HEADER
+      );
     }
   }
 
+  const response: SettlementResponse = { success: value.success, network };
+  if (typeof value.errorReason === 'string') {
+    response.errorReason = value.errorReason;
+  }
+  if (typeof value.payer === 'string') {
+    response.payer = value.payer;
+  }
+  if (typeof value.transaction === 'string') {
+    response.transaction = value.transaction;
+  }
+  if (value.settlement === 'settled' || value.settlement === 'pending') {
+    response.settlement = value.settlement;
+  }
   return response;
+}
+
+export function readSettlementResponse(response: HeaderResponse): SettlementResponse | null {
+  const header = getHeader(response.headers, PAYMENT_RESPONSE_HEADER);
+  if (header) {
+    return parseSettlementResponse(decodeHeaderJson<unknown>(header, PAYMENT_RESPONSE_HEADER));
+  }
+  if (isRecord(response.body) && typeof response.body.success === 'boolean') {
+    return parseSettlementResponse(response.body);
+  }
+  return null;
 }

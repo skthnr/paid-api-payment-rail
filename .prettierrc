@@ -6,18 +6,5 @@
   "printWidth": 100,
   "bracketSpacing": true,
   "arrowParens": "avoid",
-  "endOfLine": "lf",
-  "plugins": ["prettier-plugin-solidity"],
-  "overrides": [
-    {
-      "files": "*.sol",
-      "options": {
-        "printWidth": 100,
-        "tabWidth": 4,
-        "useTabs": false,
-        "singleQuote": false,
-        "bracketSpacing": true
-      }
-    }
-  ]
+  "endOfLine": "lf"
 }

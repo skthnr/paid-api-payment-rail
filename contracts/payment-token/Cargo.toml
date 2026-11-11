@@ -1,0 +1,23 @@
+[package]
+name = "portico-payment-token"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.95"
+description = "Portico test payment fungible token (NEP-141/145/148, 18 decimals)"
+license = "Apache-2.0"
+
+[lib]
+name = "portico_payment_token"
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+near-sdk = { version = "=5.30.1", features = ["legacy"] }
+near-contract-standards = "=5.30.1"
+
+[profile.release]
+panic = "abort"
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
+overflow-checks = true

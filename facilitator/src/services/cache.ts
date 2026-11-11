@@ -1,186 +1,140 @@
 /**
- * Payment Cache Service
- * 
- * LRU cache with TTL for payment status caching
+ * Duplicate-settlement cache.
+ *
+ * x402 v2 §10 is a RECOMMENDED (SHOULD) mitigation, implemented here as a
+ * fail-closed guard: the first request for a payload hash wins, concurrent or
+ * repeated submissions of the same signed delegate are rejected until the entry
+ * is evicted at the delegate's `max_block_height` or the process TTL expires.
  */
 
+import { createHash } from 'node:crypto';
 import { LRUCache } from 'lru-cache';
-import type { CachedPayment, PaymentStatus } from '../types.js';
-import { logger } from '../middleware/logger.js';
 
-/**
- * Cache configuration
- */
-export interface CacheConfig {
-  /** Maximum number of items in cache */
-  maxSize: number;
-  /** Time-to-live in milliseconds */
-  ttlMs: number;
+export type SettlementState = 'pending' | 'settled' | 'failed';
+
+export interface SettlementRecord {
+  payloadHash: string;
+  state: SettlementState;
+  txHash: string | null;
+  maxBlockHeight: number;
+  errorReason: string | null;
+  createdAt: number;
+  updatedAt: number;
 }
 
-/**
- * Default cache configuration
- */
-const DEFAULT_CONFIG: CacheConfig = {
-  maxSize: 10000,
-  ttlMs: 24 * 60 * 60 * 1000, // 24 hours
-};
+export interface BeginSettlementResult {
+  record: SettlementRecord;
+  duplicate: boolean;
+}
 
-/**
- * Payment Cache
- */
-export class PaymentCache {
-  private cache: LRUCache<string, CachedPayment>;
-  private config: CacheConfig;
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== 'object') {
+    return JSON.stringify(value) ?? 'null';
+  }
+  if (Array.isArray(value)) {
+    return `[${value.map(stableStringify).join(',')}]`;
+  }
+  const record = value as Record<string, unknown>;
+  return `{${Object.keys(record)
+    .sort()
+    .map(key => `${JSON.stringify(key)}:${stableStringify(record[key])}`)
+    .join(',')}}`;
+}
 
-  constructor(config: Partial<CacheConfig> = {}) {
-    this.config = { ...DEFAULT_CONFIG, ...config };
+export class SettlementCache {
+  private readonly records: LRUCache<string, SettlementRecord>;
 
-    this.cache = new LRUCache({
-      max: this.config.maxSize,
-      ttl: this.config.ttlMs,
-      updateAgeOnGet: true,
-      updateAgeOnHas: true,
+  public constructor(ttlMs: number, maxEntries = 10_000) {
+    this.records = new LRUCache<string, SettlementRecord>({
+      max: maxEntries,
+      ttl: ttlMs,
+      updateAgeOnGet: false,
     });
+  }
 
-    logger.info('PaymentCache initialized', {
-      maxSize: this.config.maxSize,
-      ttlMs: this.config.ttlMs,
-    });
+  public static hashPayload(payload: unknown): string {
+    return createHash('sha256').update(stableStringify(payload)).digest('hex');
+  }
+
+  public get size(): number {
+    return this.records.size;
+  }
+
+  public get(hash: string): SettlementRecord | undefined {
+    return this.records.get(hash);
   }
 
   /**
-   * Get payment from cache
+   * Claim a payload for settlement. Returns `duplicate: true` when the same
+   * payload is already pending or settled; a previously failed payload may be
+   * retried.
    */
-  get(txHash: string): CachedPayment | undefined {
-    const payment = this.cache.get(txHash.toLowerCase());
-    if (payment) {
-      logger.debug('Cache hit', { txHash });
+  public begin(payload: unknown, maxBlockHeight: number): BeginSettlementResult {
+    const payloadHash = SettlementCache.hashPayload(payload);
+    const existing = this.records.get(payloadHash);
+    if (existing && existing.state !== 'failed') {
+      return { record: existing, duplicate: true };
     }
-    return payment;
-  }
-
-  /**
-   * Set payment in cache
-   */
-  set(txHash: string, payment: Omit<CachedPayment, 'ttl'>): void {
-    const cacheEntry: CachedPayment = {
-      ...payment,
-      ttl: Date.now() + this.config.ttlMs,
+    const now = Date.now();
+    const record: SettlementRecord = {
+      payloadHash,
+      state: 'pending',
+      txHash: null,
+      maxBlockHeight,
+      errorReason: null,
+      createdAt: now,
+      updatedAt: now,
     };
-    this.cache.set(txHash.toLowerCase(), cacheEntry);
-    logger.debug('Cache set', { txHash, verified: payment.verified });
+    this.records.set(payloadHash, record);
+    return { record, duplicate: false };
+  }
+
+  public markSettled(hash: string, txHash: string): boolean {
+    return this.update(hash, record => ({
+      ...record,
+      state: 'settled',
+      txHash,
+      errorReason: null,
+    }));
+  }
+
+  public markFailed(hash: string, reason: string): boolean {
+    return this.update(hash, record => ({
+      ...record,
+      state: 'failed',
+      errorReason: reason,
+    }));
   }
 
   /**
-   * Check if payment exists in cache
+   * Evict entries whose delegate can no longer land: `max_block_height` has
+   * passed, so the protocol rejects the inner transaction anyway.
    */
-  has(txHash: string): boolean {
-    return this.cache.has(txHash.toLowerCase());
-  }
-
-  /**
-   * Delete payment from cache
-   */
-  delete(txHash: string): boolean {
-    return this.cache.delete(txHash.toLowerCase());
-  }
-
-  /**
-   * Clear all cached payments
-   */
-  clear(): void {
-    this.cache.clear();
-    logger.info('Cache cleared');
-  }
-
-  /**
-   * Get cache statistics
-   */
-  getStats(): {
-    size: number;
-    maxSize: number;
-    ttlMs: number;
-  } {
-    return {
-      size: this.cache.size,
-      maxSize: this.config.maxSize,
-      ttlMs: this.config.ttlMs,
-    };
-  }
-
-  /**
-   * Get all cached payments (for debugging)
-   */
-  getAll(): CachedPayment[] {
-    const payments: CachedPayment[] = [];
-    for (const [, value] of this.cache.entries()) {
-      payments.push(value);
+  public evictExpired(blockHeight: number): number {
+    let removed = 0;
+    for (const [hash, record] of this.records.entries()) {
+      if (record.maxBlockHeight <= blockHeight) {
+        this.records.delete(hash);
+        removed += 1;
+      }
     }
-    return payments;
+    this.records.purgeStale();
+    return removed;
   }
 
-  /**
-   * Convert cached payment to status response
-   */
-  toStatus(cached: CachedPayment): PaymentStatus {
-    return {
-      txHash: cached.txHash,
-      verified: cached.verified,
-      settled: cached.settled,
-      amount: cached.amount,
-      token: cached.token,
-      from: cached.from,
-      to: cached.to,
-      timestamp: cached.timestamp,
-      blockNumber: cached.blockNumber,
-    };
+  public list(): SettlementRecord[] {
+    return [...this.records.values()].sort((a, b) => b.updatedAt - a.updatedAt);
   }
 
-  /**
-   * Mark payment as verified
-   */
-  markVerified(txHash: string, blockNumber?: number): void {
-    const existing = this.get(txHash);
-    if (existing) {
-      this.set(txHash, {
-        ...existing,
-        verified: true,
-        blockNumber,
-      });
+  private update(
+    hash: string,
+    change: (record: SettlementRecord) => SettlementRecord
+  ): boolean {
+    const record = this.records.get(hash);
+    if (!record) {
+      return false;
     }
+    this.records.set(hash, { ...change(record), updatedAt: Date.now() });
+    return true;
   }
-
-  /**
-   * Mark payment as settled
-   */
-  markSettled(txHash: string): void {
-    const existing = this.get(txHash);
-    if (existing) {
-      this.set(txHash, {
-        ...existing,
-        settled: true,
-      });
-    }
-  }
-}
-
-/**
- * Create PaymentCache instance
- */
-export function createPaymentCache(config: Partial<CacheConfig> = {}): PaymentCache {
-  return new PaymentCache(config);
-}
-
-// Singleton instance
-let cacheInstance: PaymentCache | null = null;
-
-/**
- * Get shared cache instance
- */
-export function getPaymentCache(config?: Partial<CacheConfig>): PaymentCache {
-  if (!cacheInstance) {
-    cacheInstance = createPaymentCache(config);
-  }
-  return cacheInstance;
 }

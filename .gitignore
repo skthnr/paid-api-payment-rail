@@ -7,11 +7,16 @@ dist/
 build/
 out/
 *.tsbuildinfo
+target/
+*.wasm
 
 # Environment files
 .env
 .env.local
 .env.*.local
+
+# Near CLI credentials (never commit keys)
+.near-credentials/
 
 # IDE
 .idea/
@@ -35,12 +40,6 @@ yarn-error.log*
 # Test coverage
 coverage/
 .nyc_output/
-
-# Foundry / Solidity
-contracts/cache/
-contracts/out/
-contracts/broadcast/
-contracts/lib/
 
 # Misc
 .cache/

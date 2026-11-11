@@ -1,8 +1,5 @@
 packages:
-  - 'packages/*'
-  - 'facilitator'
-  - 'yield-tracker'
-  - 'cli'
-  - 'contracts'
-  - 'examples/*'
-  - 'web-app'
+  - facilitator
+  - packages/*
+  - mcp
+  - examples/*

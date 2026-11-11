@@ -1,45 +1,36 @@
 {
-  "name": "@x402/facilitator",
-  "version": "1.0.0",
-  "description": "Production X402 Payment Facilitator Server for Arbitrum",
+  "name": "@portico/facilitator",
+  "version": "0.1.0",
+  "private": true,
+  "description": "portico x402 v2 NEAR exact-scheme relayer and quote API",
+  "type": "module",
   "main": "dist/server.js",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "dev": "tsx watch src/server.ts",
-    "lint": "eslint src/**/*.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint src --ext .ts"
   },
-  "keywords": [
-    "x402",
-    "payment",
-    "facilitator",
-    "arbitrum",
-    "usds",
-    "sperax",
-    "eip-3009"
-  ],
-  "author": "X402 Team",
-  "license": "MIT",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=22.22.2"
+  },
   "dependencies": {
-    "cors": "^2.8.5",
-    "express": "^4.18.2",
+    "cors": "2.8.5",
+    "dotenv": "^16.3.1",
+    "express": "4.22.2",
     "express-rate-limit": "^7.1.5",
     "helmet": "^7.1.0",
-    "lru-cache": "^10.1.0",
-    "viem": "^2.21.0",
-    "winston": "^3.11.0",
-    "dotenv": "^16.3.1"
+    "lru-cache": "11.5.3",
+    "near-api-js": "7.5.3",
+    "winston": "^3.11.0"
   },
   "devDependencies": {
     "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
-    "@types/node": "^20.10.0",
-    "eslint": "^8.55.0",
-    "tsx": "^4.6.2",
-    "typescript": "^5.3.2"
-  },
-  "engines": {
-    "node": ">=18.0.0"
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "~5.7.2"
   }
 }

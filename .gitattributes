@@ -24,9 +24,6 @@
 # Python
 *.py text eol=lf
 
-# Solidity
-*.sol text eol=lf
-
 # SVG
 *.svg text eol=lf
 
