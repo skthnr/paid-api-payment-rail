@@ -79,12 +79,7 @@ export function requestLogger(req: Request, res: Response, next: NextFunction): 
   next();
 }
 
-export function errorLogger(
-  err: Error,
-  req: Request,
-  _res: Response,
-  next: NextFunction
-): void {
+export function errorLogger(err: Error, req: Request, _res: Response, next: NextFunction): void {
   logger.error('Request error', {
     requestId: req.headers['x-request-id'],
     method: req.method,

@@ -44,8 +44,7 @@ export class ConfigError extends Error {
   }
 }
 
-const ACCOUNT_ID_PATTERN =
-  /^(?=.{2,64}$)([a-z\d]+[-_])*[a-z\d]+(\.([a-z\d]+[-_])*[a-z\d]+)*$/;
+const ACCOUNT_ID_PATTERN = /^(?=.{2,64}$)([a-z\d]+[-_])*[a-z\d]+(\.([a-z\d]+[-_])*[a-z\d]+)*$/;
 const SECRET_KEY_PATTERN = /^(ed25519|secp256k1):[1-9A-HJ-NP-Za-km-z]+$/;
 
 export function isAccountId(value: string): boolean {
@@ -143,25 +142,34 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): FacilitatorCon
     logLevel: env.LOG_LEVEL ?? 'info',
     network: parseNetwork(env.PORTICO_NETWORK ?? 'near:testnet'),
     rpcUrl: env.PORTICO_RPC_URL ?? 'https://test.rpc.fastnear.com',
-    splitContract: assertAccountId(required(env, 'PORTICO_SPLIT_CONTRACT'), 'PORTICO_SPLIT_CONTRACT'),
-    tokenContract: assertAccountId(required(env, 'PORTICO_TOKEN_CONTRACT'), 'PORTICO_TOKEN_CONTRACT'),
+    splitContract: assertAccountId(
+      required(env, 'PORTICO_SPLIT_CONTRACT'),
+      'PORTICO_SPLIT_CONTRACT'
+    ),
+    tokenContract: assertAccountId(
+      required(env, 'PORTICO_TOKEN_CONTRACT'),
+      'PORTICO_TOKEN_CONTRACT'
+    ),
     expectedDecimals,
     relayerId: assertAccountId(required(env, 'PORTICO_RELAYER_ID'), 'PORTICO_RELAYER_ID'),
     relayerSecretKeys: parseSecretKeys(required(env, 'PORTICO_RELAYER_SECRET_KEYS')),
-    platformWallet: assertAccountId(required(env, 'PORTICO_PLATFORM_WALLET'), 'PORTICO_PLATFORM_WALLET'),
+    platformWallet: assertAccountId(
+      required(env, 'PORTICO_PLATFORM_WALLET'),
+      'PORTICO_PLATFORM_WALLET'
+    ),
     feeBps,
     port: integer(env, 'PORTICO_FACILITATOR_PORT', 3002, 1, 65_535),
     host: env.HOST ?? '0.0.0.0',
     facilitatorUrl: parseUrl(env.FACILITATOR_URL ?? 'http://localhost:3002'),
     maxTimeoutSeconds: integer(env, 'PORTICO_MAX_TIMEOUT_SECONDS', 60, 1, 3600),
-    finalityLagBlocks: integer(
+    finalityLagBlocks: integer(env, 'PORTICO_FINALITY_LAG_BLOCKS', FINALITY_LAG_BLOCKS, 0, 60),
+    settlementCacheTtlMs: integer(
       env,
-      'PORTICO_FINALITY_LAG_BLOCKS',
-      FINALITY_LAG_BLOCKS,
-      0,
-      60
+      'PORTICO_SETTLEMENT_CACHE_TTL_MS',
+      120_000,
+      1_000,
+      86_400_000
     ),
-    settlementCacheTtlMs: integer(env, 'PORTICO_SETTLEMENT_CACHE_TTL_MS', 120_000, 1_000, 86_400_000),
     rateLimitWindowMs: integer(env, 'RATE_LIMIT_WINDOW_MS', 60_000, 1_000, 3_600_000),
     rateLimitMax: integer(
       env,

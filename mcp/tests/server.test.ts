@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-  createMcpServer,
-  handleLine,
-  type JsonRpcResponse,
-} from '../src/mcp-server.js';
+import { createMcpServer, handleLine, type JsonRpcResponse } from '../src/mcp-server.js';
 import type { ToolDefinition, ToolHost } from '../src/tools.js';
 
 const definitions: readonly ToolDefinition[] = [
@@ -61,9 +57,7 @@ describe('MCP stdio shell', () => {
   });
 
   it('returns tool output as text content', async () => {
-    const server = createMcpServer(
-      host(async (_name, args) => ({ echoed: args.value }))
-    );
+    const server = createMcpServer(host(async (_name, args) => ({ echoed: args.value })));
     const response = responseOf(
       await server.handle({
         jsonrpc: '2.0',
@@ -97,9 +91,7 @@ describe('MCP stdio shell', () => {
       content: [{ type: 'text', text: expect.stringContaining('facilitator unavailable') }],
     });
 
-    const next = responseOf(
-      await server.handle({ jsonrpc: '2.0', id: 5, method: 'ping' })
-    );
+    const next = responseOf(await server.handle({ jsonrpc: '2.0', id: 5, method: 'ping' }));
     expect(resultRecord(next)).toEqual({});
   });
 

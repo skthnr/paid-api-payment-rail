@@ -8,11 +8,7 @@
  * from the quoted requirement throws a typed error instead of degrading.
  */
 
-import {
-  DEFAULT_NETWORK,
-  PAYMENT_SIGNATURE_HEADER,
-  X402_VERSION,
-} from './constants.js';
+import { DEFAULT_NETWORK, PAYMENT_SIGNATURE_HEADER, X402_VERSION } from './constants.js';
 import {
   ClientConfigError,
   PaymentAcceptError,
@@ -38,12 +34,7 @@ import {
   normalizeAmount,
   type MetaTransactionAccount,
 } from './payments/metaTx.js';
-import type {
-  AcceptsEntry,
-  PaymentPayload,
-  PaymentRequired,
-  SettlementResponse,
-} from './types.js';
+import type { AcceptsEntry, PaymentPayload, PaymentRequired, SettlementResponse } from './types.js';
 
 /** Minimal response surface consumed by the client; `Response` satisfies it. */
 export interface PaymentResponseLike {
@@ -290,7 +281,9 @@ export class PorticoClient {
     try {
       new URL(facilitatorUrl);
     } catch (cause) {
-      throw new ClientConfigError(`facilitatorUrl is not a valid URL: ${facilitatorUrl}`, { cause });
+      throw new ClientConfigError(`facilitatorUrl is not a valid URL: ${facilitatorUrl}`, {
+        cause,
+      });
     }
     this.facilitatorUrl = facilitatorUrl.replace(/\/+$/, '');
     this.tokenContract = configString(options.tokenContract, 'tokenContract');
@@ -312,10 +305,17 @@ export class PorticoClient {
     if (params !== undefined && !isRecord(params)) {
       throw new QuoteRequestError('params must be a plain object');
     }
-    const body = JSON.stringify(params === undefined ? { service: name } : { service: name, params });
-    const response = await this.request('POST', `${this.facilitatorUrl}/quote`, {
-      'Content-Type': 'application/json',
-    }, body);
+    const body = JSON.stringify(
+      params === undefined ? { service: name } : { service: name, params }
+    );
+    const response = await this.request(
+      'POST',
+      `${this.facilitatorUrl}/quote`,
+      {
+        'Content-Type': 'application/json',
+      },
+      body
+    );
     const { text, json } = await readResponseBody(response);
     if (response.status !== 402) {
       throw new QuoteRequestError(`facilitator quote failed with HTTP ${response.status}`, {
@@ -491,10 +491,11 @@ export class PorticoClient {
       return this.assertSettled(response, settlement, text);
     }
     if (!isSuccessStatus(response.status)) {
-      throw new PaymentRejectedError(
-        `paid request failed with HTTP ${response.status}`,
-        { status: response.status, settlement: null, body: text }
-      );
+      throw new PaymentRejectedError(`paid request failed with HTTP ${response.status}`, {
+        status: response.status,
+        settlement: null,
+        body: text,
+      });
     }
     throw new PaymentSettlementMissingError(
       `HTTP ${response.status} response did not include PAYMENT-RESPONSE`,
@@ -508,10 +509,11 @@ export class PorticoClient {
     body: string | null
   ): PaymentResult {
     if (!isSuccessStatus(response.status)) {
-      throw new PaymentRejectedError(
-        `paid request failed with HTTP ${response.status}`,
-        { status: response.status, settlement, body }
-      );
+      throw new PaymentRejectedError(`paid request failed with HTTP ${response.status}`, {
+        status: response.status,
+        settlement,
+        body,
+      });
     }
     if (!settlement.success) {
       throw new PaymentSettlementError(

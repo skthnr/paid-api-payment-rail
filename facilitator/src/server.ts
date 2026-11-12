@@ -42,7 +42,10 @@ export interface PorticoApp {
   gate: DelegateGate;
 }
 
-export function createApp(config: FacilitatorConfig, dependencies: AppDependencies = {}): PorticoApp {
+export function createApp(
+  config: FacilitatorConfig,
+  dependencies: AppDependencies = {}
+): PorticoApp {
   const app = express();
   const cache = new SettlementCache(config.settlementCacheTtlMs);
   const near = dependencies.near ?? new NearClient(config);
@@ -113,10 +116,7 @@ export function createApp(config: FacilitatorConfig, dependencies: AppDependenci
     })
   );
   app.use('/verify', createVerifyRouter({ gate, network: config.network }));
-  app.use(
-    '/settle',
-    createSettleRouter({ gate, chain: near, cache, config })
-  );
+  app.use('/settle', createSettleRouter({ gate, chain: near, cache, config }));
   app.use(
     '/payments',
     createPaymentsRouter({

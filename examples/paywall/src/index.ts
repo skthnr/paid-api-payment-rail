@@ -81,8 +81,7 @@ export interface PaywallDependencies {
   fetch?: PaywallFetch;
 }
 
-const ACCOUNT_ID_PATTERN =
-  /^(?=.{2,64}$)([a-z\d]+[-_])*[a-z\d]+(\.([a-z\d]+[-_])*[a-z\d]+)*$/;
+const ACCOUNT_ID_PATTERN = /^(?=.{2,64}$)([a-z\d]+[-_])*[a-z\d]+(\.([a-z\d]+[-_])*[a-z\d]+)*$/;
 const U128_PATTERN = /^\d+$/;
 const BASE64_PATTERN = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 
@@ -517,19 +516,11 @@ export function createPaywallApp(
     }
 
     if (!settlement.success || settlement.settlement !== 'settled') {
-      sendFailure(
-        res,
-        failureStatus(settleResponse.status),
-        settleBody,
-        paymentResponseHeader
-      );
+      sendFailure(res, failureStatus(settleResponse.status), settleBody, paymentResponseHeader);
       return;
     }
 
-    res.setHeader(
-      PAYMENT_RESPONSE_HEADER,
-      paymentResponseHeader ?? encodeHeaderJson(settlement)
-    );
+    res.setHeader(PAYMENT_RESPONSE_HEADER, paymentResponseHeader ?? encodeHeaderJson(settlement));
     res.status(200).json({
       ok: true,
       paid: true,

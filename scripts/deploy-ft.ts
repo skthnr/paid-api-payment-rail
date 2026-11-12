@@ -23,8 +23,7 @@ const wasmPath = path.join(tokenDir, 'target', 'near', 'portico_payment_token.wa
 const dryRun = process.argv.includes('--dry-run');
 const skipBuild = process.argv.includes('--skip-build');
 
-const ACCOUNT_ID_PATTERN =
-  /^(?=.{2,64}$)([a-z\d]+[-_])*[a-z\d]+(\.([a-z\d]+[-_])*[a-z\d]+)*$/;
+const ACCOUNT_ID_PATTERN = /^(?=.{2,64}$)([a-z\d]+[-_])*[a-z\d]+(\.([a-z\d]+[-_])*[a-z\d]+)*$/;
 
 function env(name: string, fallback?: string): string {
   const value = process.env[name]?.trim();

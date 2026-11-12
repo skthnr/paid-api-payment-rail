@@ -105,8 +105,7 @@ export interface VerifiedPayment extends GateSuccess {
 }
 
 export type GateResult =
-  | { ok: true; payment: VerifiedPayment }
-  | { ok: false; failure: GateFailure };
+  { ok: true; payment: VerifiedPayment } | { ok: false; failure: GateFailure };
 
 class GateReject extends Error {
   public constructor(
@@ -118,7 +117,6 @@ class GateReject extends Error {
     this.name = 'GateReject';
   }
 }
-
 
 function canonicalU128(value: unknown): bigint | null {
   if (typeof value !== 'string' || !/^(0|[1-9]\d*)$/.test(value)) {
@@ -184,7 +182,10 @@ function parsePaymentPayload(payload: unknown): PaymentPayload {
     !Number.isInteger(maxTimeoutSeconds) ||
     maxTimeoutSeconds <= 0
   ) {
-    throw new GateReject('invalid_timeout', 'accepted.maxTimeoutSeconds must be a positive integer');
+    throw new GateReject(
+      'invalid_timeout',
+      'accepted.maxTimeoutSeconds must be a positive integer'
+    );
   }
   const extra = accepted.extra;
   if (extra !== undefined && !isRecord(extra)) {
@@ -274,10 +275,7 @@ export class DelegateGate {
       throw new GateReject('invalid_amount', 'accepted.amount must be a positive u128');
     }
     if (accepted.network !== this.config.network) {
-      throw new GateReject(
-        'network_mismatch',
-        `accepted.network must be ${this.config.network}`
-      );
+      throw new GateReject('network_mismatch', `accepted.network must be ${this.config.network}`);
     }
     if (accepted.asset !== this.config.tokenContract) {
       throw new GateReject('asset_mismatch', 'accepted.asset must be the configured FT');
@@ -298,13 +296,19 @@ export class DelegateGate {
     try {
       signedDelegate = decodeSignedDelegate(delegateBytes);
     } catch {
-      throw new GateReject('invalid_signed_delegate', 'signedDelegateAction is not a valid NEP-366 delegate');
+      throw new GateReject(
+        'invalid_signed_delegate',
+        'signedDelegateAction is not a valid NEP-366 delegate'
+      );
     }
     const { delegateAction, signature } = signedDelegate;
 
     const senderId = delegateAction.senderId;
     if (!isAccountId(senderId)) {
-      throw new GateReject('invalid_signed_delegate', 'delegate senderId is not a valid account id');
+      throw new GateReject(
+        'invalid_signed_delegate',
+        'delegate senderId is not a valid account id'
+      );
     }
     if (delegateAction.receiverId !== accepted.asset) {
       throw new GateReject('receiver_mismatch', 'delegate receiverId must equal accepted.asset');
@@ -313,7 +317,11 @@ export class DelegateGate {
       throw new GateReject('invalid_action_count', 'delegate must contain exactly one action');
     }
     const action = delegateAction.actions[0];
-    if (action === undefined || action.enum !== 'functionCall' || action.functionCall === undefined) {
+    if (
+      action === undefined ||
+      action.enum !== 'functionCall' ||
+      action.functionCall === undefined
+    ) {
       throw new GateReject('unsupported_action', 'delegate action must be a FunctionCall');
     }
     const functionCall = action.functionCall;
@@ -365,7 +373,10 @@ export class DelegateGate {
     }
     if (accepted.extra !== undefined && 'splitContract' in accepted.extra) {
       if (accepted.extra.splitContract !== this.config.splitContract) {
-        throw new GateReject('payto_mismatch', 'extra.splitContract must match the configured contract');
+        throw new GateReject(
+          'payto_mismatch',
+          'extra.splitContract must match the configured contract'
+        );
       }
     }
 
@@ -374,9 +385,14 @@ export class DelegateGate {
       tool = parsePayToolMsg(args.msg);
     }
 
-    if (delegateAction.publicKey.keyType !== KeyType.ED25519 &&
-        delegateAction.publicKey.keyType !== KeyType.SECP256K1) {
-      throw new GateReject('unsupported_key_type', 'delegate public key must be ed25519 or secp256k1');
+    if (
+      delegateAction.publicKey.keyType !== KeyType.ED25519 &&
+      delegateAction.publicKey.keyType !== KeyType.SECP256K1
+    ) {
+      throw new GateReject(
+        'unsupported_key_type',
+        'delegate public key must be ed25519 or secp256k1'
+      );
     }
     const signatureCurve = extractSignatureCurve(signature);
     const signatureBytes = extractSignatureBytes(signature);
@@ -389,9 +405,7 @@ export class DelegateGate {
         'delegate signature curve must match the public key curve'
       );
     }
-    const delegateHash = createHash('sha256')
-      .update(encodeDelegateAction(delegateAction))
-      .digest();
+    const delegateHash = createHash('sha256').update(encodeDelegateAction(delegateAction)).digest();
     let signatureValid = false;
     try {
       signatureValid = delegateAction.publicKey.verify(
@@ -413,7 +427,12 @@ export class DelegateGate {
     const blockHeight = block.height;
     const blockHash = block.hash;
 
-    await this.requireAccount(senderId, blockHash, 'unknown_sender', 'payer account does not exist');
+    await this.requireAccount(
+      senderId,
+      blockHash,
+      'unknown_sender',
+      'payer account does not exist'
+    );
     await this.requireContract(this.config.tokenContract, blockHash, 'token_not_deployed');
     if (methodName === 'ft_transfer_call') {
       await this.requireContract(this.config.splitContract, blockHash, 'token_not_deployed');
@@ -441,10 +460,16 @@ export class DelegateGate {
 
     const keyNonce = accessKey.nonce;
     if (delegateAction.nonce <= keyNonce) {
-      throw new GateReject('nonce_reused', 'delegate nonce is not greater than the access-key nonce');
+      throw new GateReject(
+        'nonce_reused',
+        'delegate nonce is not greater than the access-key nonce'
+      );
     }
     if (delegateAction.nonce >= BigInt(blockHeight) * MICRO_BLOCKS_PER_BLOCK) {
-      throw new GateReject('nonce_too_large', 'delegate nonce exceeds the NEP-366 micro-block bound');
+      throw new GateReject(
+        'nonce_too_large',
+        'delegate nonce exceeds the NEP-366 micro-block bound'
+      );
     }
     const remainingBlocks = delegateAction.maxBlockHeight - BigInt(blockHeight);
     if (remainingBlocks <= 0n) {

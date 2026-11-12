@@ -17,7 +17,9 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "deploy:ft": "tsx scripts/deploy-ft.ts",
-    "demo": "tsx scripts/demo.ts"
+    "demo": "tsx scripts/demo.ts",
+    "sandbox:demo": "tsx scripts/sandbox-demo.ts",
+    "bench": "tsx scripts/bench.ts"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

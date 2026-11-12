@@ -54,7 +54,9 @@ describe('PAYMENT-REQUIRED', () => {
   });
 
   it('returns null for a non-402 response', () => {
-    expect(readPaymentRequired({ status: 200, headers: headers(encode(requirement())) })).toBeNull();
+    expect(
+      readPaymentRequired({ status: 200, headers: headers(encode(requirement())) })
+    ).toBeNull();
   });
 
   it('rejects a wrong x402Version', () => {

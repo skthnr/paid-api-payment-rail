@@ -8,11 +8,7 @@ import {
   parsePaymentRequired,
   parseSettlementResponse,
 } from '@portico/sdk';
-import {
-  createPaywallApp,
-  type PaywallConfig,
-  type PaywallFetch,
-} from './index.js';
+import { createPaywallApp, type PaywallConfig, type PaywallFetch } from './index.js';
 
 const TOKEN = 'token.portico.testnet';
 const SPLIT = 'split.portico.testnet';
@@ -29,11 +25,7 @@ function encode(value: unknown): string {
   return Buffer.from(JSON.stringify(value), 'utf8').toString('base64');
 }
 
-function json(
-  status: number,
-  body: unknown,
-  headers: Record<string, string> = {}
-): Response {
+function json(status: number, body: unknown, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { 'Content-Type': 'application/json', ...headers },
@@ -108,10 +100,7 @@ function settledBody(): Record<string, unknown> {
   };
 }
 
-async function withApp(
-  app: Express,
-  run: (baseUrl: string) => Promise<void>
-): Promise<void> {
+async function withApp(app: Express, run: (baseUrl: string) => Promise<void>): Promise<void> {
   const server = app.listen(0, '127.0.0.1');
   await once(server, 'listening');
   const address = server.address();
@@ -269,9 +258,7 @@ describe('paywall 402 loop', () => {
         errorReason: 'invalid_signature_encoding',
       });
     });
-    expect(facilitator.calls.map(call => call.url)).toEqual([
-      'http://facilitator.test/verify',
-    ]);
+    expect(facilitator.calls.map(call => call.url)).toEqual(['http://facilitator.test/verify']);
   });
 
   it('answers CORS preflight unpaid and exposes the payment headers', async () => {
@@ -290,15 +277,11 @@ describe('paywall 402 loop', () => {
         },
       });
       expect(response.status).toBe(204);
-      expect(response.headers.get('access-control-allow-origin')).toBe(
-        'http://localhost:3000'
-      );
+      expect(response.headers.get('access-control-allow-origin')).toBe('http://localhost:3000');
       const allowed = (response.headers.get('access-control-allow-headers') ?? '').toLowerCase();
       expect(allowed).toContain('payment-signature');
       expect(allowed).toContain('content-type');
-      const exposed = (
-        response.headers.get('access-control-expose-headers') ?? ''
-      ).toLowerCase();
+      const exposed = (response.headers.get('access-control-expose-headers') ?? '').toLowerCase();
       expect(exposed).toContain('payment-required');
       expect(exposed).toContain('payment-response');
       expect((response.headers.get('vary') ?? '').toLowerCase()).toContain('origin');

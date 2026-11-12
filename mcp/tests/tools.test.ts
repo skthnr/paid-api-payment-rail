@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type {
-  FetchLike,
-  PaymentResponseLike,
-} from '@portico/sdk';
+import type { FetchLike, PaymentResponseLike } from '@portico/sdk';
 import {
   PorticoTools,
   ToolConfigError,
@@ -50,10 +47,7 @@ function scriptedFetch(responses: PaymentResponseLike[]): {
   return { fetch: fetchImpl, urls };
 }
 
-function tools(
-  fetchImpl?: FetchLike,
-  overrides: Partial<PorticoToolsConfig> = {}
-): PorticoTools {
+function tools(fetchImpl?: FetchLike, overrides: Partial<PorticoToolsConfig> = {}): PorticoTools {
   return new PorticoTools({
     facilitatorUrl: 'http://facilitator.test',
     rpcUrl: 'http://127.0.0.1:1',
@@ -135,9 +129,9 @@ describe('MCP tools', () => {
     await expect(
       tools().execute('x402_balance', { account: 'Not An Account' })
     ).rejects.toBeInstanceOf(ToolInputError);
-    await expect(
-      tools().execute('x402_quote', { service: '' })
-    ).rejects.toBeInstanceOf(ToolInputError);
+    await expect(tools().execute('x402_quote', { service: '' })).rejects.toBeInstanceOf(
+      ToolInputError
+    );
     await expect(tools().execute('x402_unknown', {})).rejects.toBeInstanceOf(ToolInputError);
   });
 

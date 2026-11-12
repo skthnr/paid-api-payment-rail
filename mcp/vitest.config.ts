@@ -4,9 +4,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   resolve: {
     alias: {
-      '@portico/sdk': fileURLToPath(
-        new URL('../packages/sdk/src/index.ts', import.meta.url)
-      ),
+      '@portico/sdk': fileURLToPath(new URL('../packages/sdk/src/index.ts', import.meta.url)),
     },
   },
   test: {

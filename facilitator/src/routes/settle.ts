@@ -14,7 +14,11 @@ import { PAYMENT_RESPONSE_HEADER } from '../constants.js';
 import type { FacilitatorConfig } from '../config.js';
 import { SettlementCache } from '../services/cache.js';
 import type { DelegateGate } from '../services/delegateGate.js';
-import { decodeCanonicalBase64, encodeSettlementResponse, PaymentHeaderError } from '../services/headers.js';
+import {
+  decodeCanonicalBase64,
+  encodeSettlementResponse,
+  PaymentHeaderError,
+} from '../services/headers.js';
 import { isRecord } from '../guards.js';
 import {
   isNonceError,
@@ -28,10 +32,7 @@ import type { SettlementResponse } from '../types.js';
 import { readPaymentPayload } from './paymentRequest.js';
 
 export interface SettlementChain extends NearReader {
-  relay(
-    signedDelegate: SignedDelegate,
-    onSigned?: (txHash: string) => void
-  ): Promise<RelayResult>;
+  relay(signedDelegate: SignedDelegate, onSigned?: (txHash: string) => void): Promise<RelayResult>;
   txStatus(
     txHash: string,
     sender: string,
@@ -56,21 +57,14 @@ function payloadHashOf(payload: unknown): string | null {
   }
   try {
     return SettlementCache.hashBytes(
-      decodeCanonicalBase64(
-        payload.payload.signedDelegateAction,
-        'payload.signedDelegateAction'
-      )
+      decodeCanonicalBase64(payload.payload.signedDelegateAction, 'payload.signedDelegateAction')
     );
   } catch {
     return null;
   }
 }
 
-function sendSettlement(
-  res: Response,
-  status: number,
-  body: SettlementResponse
-): void {
+function sendSettlement(res: Response, status: number, body: SettlementResponse): void {
   res.setHeader(PAYMENT_RESPONSE_HEADER, encodeSettlementResponse(body));
   res.status(status).json(body);
 }

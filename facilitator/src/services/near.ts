@@ -260,7 +260,10 @@ export class NearClient implements NearReader {
   /** Boot assertion: the configured FT must use the scheme's 18 decimals. */
   public async assertTokenDecimals(): Promise<FtMetadataView> {
     const metadata = await this.ftMetadata();
-    if (!Number.isInteger(metadata.decimals) || metadata.decimals !== this.config.expectedDecimals) {
+    if (
+      !Number.isInteger(metadata.decimals) ||
+      metadata.decimals !== this.config.expectedDecimals
+    ) {
       throw new NearClientError(
         'token_decimals_mismatch',
         `ft_metadata().decimals is ${metadata.decimals}; expected ${this.config.expectedDecimals}`

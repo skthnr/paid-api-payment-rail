@@ -22,7 +22,7 @@ import {
   type PaymentRequired,
 } from '@portico/sdk';
 import { Account, JsonRpcProvider, type KeyPairString } from 'near-api-js';
-import { isRecord, messageOf } from './guards.js';
+import { isRecord } from './guards.js';
 
 /** Environment-backed configuration for the tool host. */
 export interface PorticoToolsConfig {
@@ -85,8 +85,7 @@ export class ToolExecutionError extends Error {
   }
 }
 
-const ACCOUNT_ID_PATTERN =
-  /^(?=.{2,64}$)([a-z\d]+[-_])*[a-z\d]+(\.([a-z\d]+[-_])*[a-z\d]+)*$/;
+const ACCOUNT_ID_PATTERN = /^(?=.{2,64}$)([a-z\d]+[-_])*[a-z\d]+(\.([a-z\d]+[-_])*[a-z\d]+)*$/;
 const SECRET_KEY_PATTERN = /^(ed25519|secp256k1):[1-9A-HJ-NP-Za-km-z]+$/;
 const TX_HASH_PATTERN = /^[1-9A-HJ-NP-Za-km-z]{32,64}$/;
 const U128_PATTERN = /^\d+$/;
@@ -99,11 +98,7 @@ function requiredEnv(env: NodeJS.ProcessEnv, name: string): string {
   return value;
 }
 
-function requireString(
-  args: Record<string, unknown>,
-  field: string,
-  maxLength: number
-): string {
+function requireString(args: Record<string, unknown>, field: string, maxLength: number): string {
   const value = args[field];
   if (typeof value !== 'string' || value.trim().length === 0) {
     throw new ToolInputError(`${field} must be a non-empty string`);
@@ -419,9 +414,7 @@ export class PorticoTools implements ToolHost {
     const requested = optionalString(args, 'account', 64);
     const accountId = requested ?? this.config.buyerAccount;
     if (accountId === undefined) {
-      throw new ToolInputError(
-        'account is required when PORTICO_BUYER_ACCOUNT is not configured'
-      );
+      throw new ToolInputError('account is required when PORTICO_BUYER_ACCOUNT is not configured');
     }
     assertAccountId(accountId, 'account');
     const provider = this.getProvider();
@@ -443,9 +436,7 @@ export class PorticoTools implements ToolHost {
     };
   }
 
-  private async verifyPaymentTool(
-    args: Record<string, unknown>
-  ): Promise<Record<string, unknown>> {
+  private async verifyPaymentTool(args: Record<string, unknown>): Promise<Record<string, unknown>> {
     const transactionHash = requireString(args, 'transactionHash', 128);
     if (!TX_HASH_PATTERN.test(transactionHash)) {
       throw new ToolInputError('transactionHash must be a base58 NEAR transaction hash');
@@ -474,9 +465,7 @@ export class PorticoTools implements ToolHost {
     return { verified: parsed.success === true, payment: parsed };
   }
 
-  private async estimateCostTool(
-    args: Record<string, unknown>
-  ): Promise<Record<string, unknown>> {
+  private async estimateCostTool(args: Record<string, unknown>): Promise<Record<string, unknown>> {
     const service = requireString(args, 'service', 64);
     const requirement = await this.client.quote(service, optionalParams(args));
     const accepted = firstAccept(requirement);
@@ -546,8 +535,6 @@ export function createToolsFromEnv(env: NodeJS.ProcessEnv = process.env): Portic
     tokenContract: requiredEnv(env, 'PORTICO_TOKEN_CONTRACT'),
     splitContract: requiredEnv(env, 'PORTICO_SPLIT_CONTRACT'),
     ...(buyerAccount === undefined || buyerAccount.length === 0 ? {} : { buyerAccount }),
-    ...(buyerSecretKey === undefined || buyerSecretKey.length === 0
-      ? {}
-      : { buyerSecretKey }),
+    ...(buyerSecretKey === undefined || buyerSecretKey.length === 0 ? {} : { buyerSecretKey }),
   });
 }

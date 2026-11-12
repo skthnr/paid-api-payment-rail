@@ -11,13 +11,7 @@
 import { JsonRpcProvider } from 'near-api-js';
 import { LEDGER_LIMIT_MAX } from '../constants.js';
 import { ClientConfigError, ContractViewError } from '../errors.js';
-import type {
-  LedgerEntry,
-  SplitView,
-  StreamView,
-  ToolInfo,
-  TotalsView,
-} from '../types.js';
+import type { LedgerEntry, SplitView, StreamView, ToolInfo, TotalsView } from '../types.js';
 
 export const DEFAULT_NEAR_RPC_URL = 'https://rpc.testnet.near.org';
 

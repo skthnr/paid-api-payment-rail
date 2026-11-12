@@ -23,9 +23,7 @@ interface ReceiptEntry {
 }
 
 function statusRecord(status: unknown): Record<string, unknown> | null {
-  return status !== null && typeof status === 'object'
-    ? (status as Record<string, unknown>)
-    : null;
+  return status !== null && typeof status === 'object' ? (status as Record<string, unknown>) : null;
 }
 
 function successValueText(status: unknown): string | null {
@@ -104,9 +102,10 @@ export function inspectInnerTransfer(
         }
         return { ok: true, used: used.toString(), receiptId: current.id };
       }
-      const nextId = record !== null && typeof record.SuccessReceiptId === 'string'
-        ? record.SuccessReceiptId
-        : null;
+      const nextId =
+        record !== null && typeof record.SuccessReceiptId === 'string'
+          ? record.SuccessReceiptId
+          : null;
       if (nextId === null) {
         return {
           ok: false,

@@ -8,9 +8,9 @@ function byteArray(value: unknown): number[] {
 
 describe('decodeViewResult', () => {
   it('decodes the RPC byte array into JSON', () => {
-    expect(decodeViewResult('calculate_split', byteArray({ developer: '80', platform: '20' }))).toEqual(
-      { developer: '80', platform: '20' }
-    );
+    expect(
+      decodeViewResult('calculate_split', byteArray({ developer: '80', platform: '20' }))
+    ).toEqual({ developer: '80', platform: '20' });
   });
 
   it('decodes a base64 string payload into JSON', () => {

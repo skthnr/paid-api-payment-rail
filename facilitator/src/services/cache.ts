@@ -167,10 +167,7 @@ export class SettlementCache {
     return this.list().find(record => record.txHash === txHash);
   }
 
-  private update(
-    hash: string,
-    change: (record: SettlementRecord) => SettlementRecord
-  ): boolean {
+  private update(hash: string, change: (record: SettlementRecord) => SettlementRecord): boolean {
     const record = this.records.get(hash);
     if (!record) {
       return false;

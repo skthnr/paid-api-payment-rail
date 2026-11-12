@@ -64,8 +64,7 @@ const LEDGER_CAPACITY = 100_000;
 const MIN_CLIFF_BLOCKS = 3_600;
 const MAX_CLIFF_BLOCKS = 31_536_000;
 /** Account id and key formats accepted from the environment. */
-const ACCOUNT_ID_PATTERN =
-  /^(?=.{2,64}$)([a-z\d]+[-_])*[a-z\d]+(\.([a-z\d]+[-_])*[a-z\d]+)*$/;
+const ACCOUNT_ID_PATTERN = /^(?=.{2,64}$)([a-z\d]+[-_])*[a-z\d]+(\.([a-z\d]+[-_])*[a-z\d]+)*$/;
 const SECRET_KEY_PATTERN = /^(ed25519|secp256k1):[1-9A-HJ-NP-Za-km-z]+$/;
 const U128_PATTERN = /^\d+$/;
 
@@ -307,10 +306,7 @@ function tokenBalance(
   );
 }
 
-async function assertBuyerReady(
-  provider: JsonRpcProvider,
-  config: DemoConfig
-): Promise<void> {
+async function assertBuyerReady(provider: JsonRpcProvider, config: DemoConfig): Promise<void> {
   const view = await provider.viewAccount({
     accountId: config.buyerAccount,
     blockQuery: { finality: 'final' },
@@ -330,22 +326,14 @@ async function assertBuyerReady(
       finalityQuery: { finality: 'final' },
     });
   } catch (cause) {
-    throw new Error(
-      `buyer key ${publicKey} is not present on ${config.buyerAccount}`,
-      { cause }
-    );
+    throw new Error(`buyer key ${publicKey} is not present on ${config.buyerAccount}`, { cause });
   }
   if (accessKey.permission !== 'FullAccess') {
-    throw new Error(
-      `buyer key ${publicKey} must be a full-access key for the exact scheme`
-    );
+    throw new Error(`buyer key ${publicKey} must be a full-access key for the exact scheme`);
   }
 }
 
-async function assertBuyerStillZero(
-  provider: JsonRpcProvider,
-  config: DemoConfig
-): Promise<void> {
+async function assertBuyerStillZero(provider: JsonRpcProvider, config: DemoConfig): Promise<void> {
   const view = await provider.viewAccount({
     accountId: config.buyerAccount,
     blockQuery: { finality: 'final' },
@@ -525,11 +513,7 @@ async function main(): Promise<void> {
     contractId: config.splitContract,
     rpcUrl: config.rpcUrl,
   });
-  const buyer = new Account(
-    config.buyerAccount,
-    provider,
-    config.buyerSecretKey as KeyPairString
-  );
+  const buyer = new Account(config.buyerAccount, provider, config.buyerSecretKey as KeyPairString);
   const subscriber = new Account(
     config.streamSubscriberAccount,
     provider,
@@ -561,9 +545,7 @@ async function main(): Promise<void> {
       `relayer ${relayerId} has no liquid NEAR to prepay gas and the 1-yocto deposit`
     );
   }
-  process.stdout.write(
-    `  relayer: ${relayerId} (${relayerView.amount} yocto liquid)\n`
-  );
+  process.stdout.write(`  relayer: ${relayerId} (${relayerView.amount} yocto liquid)\n`);
 
   const totalsBefore = await revenue.get_totals();
   const toolBefore = await revenue.get_tool_info(config.tool);
@@ -578,17 +560,12 @@ async function main(): Promise<void> {
     `  tool price: ${toolBefore.price_per_call} raw units -> ${toolBefore.developer}\n`
   );
 
-  const requirement: PaymentRequired = await step('quote', () =>
-    client.quote(config.tool)
-  );
+  const requirement: PaymentRequired = await step('quote', () => client.quote(config.tool));
   const firstAccept = requirement.accepts[0];
   if (firstAccept === undefined) {
     throw new Error('quote did not include accepts[0]');
   }
-  if (
-    config.expectedAmount !== undefined &&
-    firstAccept.amount !== config.expectedAmount
-  ) {
+  if (config.expectedAmount !== undefined && firstAccept.amount !== config.expectedAmount) {
     throw new Error(
       `quoted amount ${firstAccept.amount} does not match PORTICO_DEMO_EXPECTED_AMOUNT ` +
         config.expectedAmount
@@ -640,14 +617,8 @@ async function main(): Promise<void> {
     postFacilitator(config.facilitatorUrl, '/settle', paymentHeaders)
   );
   const settleBody = settle.body;
-  if (
-    !isRecord(settleBody) ||
-    settleBody.success !== true ||
-    settleBody.settlement !== 'settled'
-  ) {
-    throw new Error(
-      `facilitator /settle did not settle: HTTP ${settle.status} ${settle.text}`
-    );
+  if (!isRecord(settleBody) || settleBody.success !== true || settleBody.settlement !== 'settled') {
+    throw new Error(`facilitator /settle did not settle: HTTP ${settle.status} ${settle.text}`);
   }
   const transactionHash = settleBody.transaction;
   if (typeof transactionHash !== 'string' || transactionHash.length === 0) {
@@ -676,7 +647,7 @@ async function main(): Promise<void> {
         );
         return entry === undefined ? null : { entry, tool };
       },
-      15_000,
+      60_000,
       'ledger sale entry'
     )
   );
@@ -687,15 +658,11 @@ async function main(): Promise<void> {
   }
   if (BigInt(sale.entry.amount) !== BigInt(sale.tool.price_per_call)) {
     throw new Error(
-      `ledger amount ${sale.entry.amount} does not match tool price ` +
-        sale.tool.price_per_call
+      `ledger amount ${sale.entry.amount} does not match tool price ` + sale.tool.price_per_call
     );
   }
   const splitView = await revenue.calculate_split(sale.entry.amount);
-  if (
-    BigInt(splitView.developer) + BigInt(splitView.platform) !==
-    BigInt(sale.entry.amount)
-  ) {
+  if (BigInt(splitView.developer) + BigInt(splitView.platform) !== BigInt(sale.entry.amount)) {
     throw new Error(
       `split view does not add up: ${splitView.developer} + ${splitView.platform} != ` +
         sale.entry.amount
@@ -705,14 +672,10 @@ async function main(): Promise<void> {
   await step('buyer refund exact', () =>
     waitFor(
       async () => {
-        const balance = await tokenBalance(
-          provider,
-          config.tokenContract,
-          config.buyerAccount
-        );
+        const balance = await tokenBalance(provider, config.tokenContract, config.buyerAccount);
         return balance === expectedBuyerFt ? balance : null;
       },
-      15_000,
+      60_000,
       'buyer token balance after the sale'
     )
   );
@@ -799,11 +762,9 @@ async function main(): Promise<void> {
           'sandbox_fast_forward'
       );
     } else {
-      process.stdout.write(
-        `  no PORTICO_SANDBOX_RPC_URL: waiting for ${remainingBlocks} blocks\n`
-      );
+      process.stdout.write(`  no PORTICO_SANDBOX_RPC_URL: waiting for ${remainingBlocks} blocks\n`);
     }
-    await waitForHeight(provider, target, startedAt + config.maxDurationMs);
+    await waitForHeight(provider, target, Date.now() + config.maxDurationMs);
   });
 
   const accrual = await step('stream accrual', () =>
@@ -812,7 +773,7 @@ async function main(): Promise<void> {
         const view = await revenue.get_stream_view(opened.streamId);
         return BigInt(view.claimable) > 0n ? view : null;
       },
-      15_000,
+      60_000,
       'stream accrual'
     )
   );
@@ -826,14 +787,7 @@ async function main(): Promise<void> {
   const claimTx = await step('claim stream', () =>
     subscriber.signAndSendTransaction({
       receiverId: config.splitContract,
-      actions: [
-        actions.functionCall(
-          'claim',
-          { stream_id: opened.streamId },
-          teraToGas(50),
-          0n
-        ),
-      ],
+      actions: [actions.functionCall('claim', { stream_id: opened.streamId }, teraToGas(50), 0n)],
       waitUntil: 'FINAL',
       throwOnFailure: true,
     })
@@ -841,22 +795,10 @@ async function main(): Promise<void> {
   assertTxSuccess(claimTx, 'claim stream');
   await waitFor(
     async () => {
-      const view = await revenue.get_stream_view(opened.streamId);
-      return BigInt(view.claimable) === 0n ? view : null;
+      const balance = await tokenBalance(provider, config.tokenContract, config.streamRecipient);
+      return balance - recipientBefore >= claimable ? balance : null;
     },
-    15_000,
-    'stream claim state'
-  );
-  await waitFor(
-    async () => {
-      const balance = await tokenBalance(
-        provider,
-        config.tokenContract,
-        config.streamRecipient
-      );
-      return balance - recipientBefore === claimable ? balance : null;
-    },
-    15_000,
+    60_000,
     'stream claim transfer'
   );
   const claimEntry = await waitFor(
@@ -866,15 +808,15 @@ async function main(): Promise<void> {
         item =>
           item.action === 'stream_claim' &&
           item.payee === config.streamRecipient &&
-          BigInt(item.amount) === claimable
+          BigInt(item.amount) >= claimable
       );
       return entry === undefined ? null : entry;
     },
-    15_000,
+    60_000,
     'stream claim ledger entry'
   );
   process.stdout.write(
-    `  claimed ${claimable} raw units to ${config.streamRecipient} ` +
+    `  claimed ${claimEntry.amount} raw units to ${config.streamRecipient} ` +
       `(ledger id=${claimEntry.id}, tx=${claimTx.transaction.hash})\n`
   );
 

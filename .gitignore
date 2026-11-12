@@ -45,3 +45,6 @@ coverage/
 .cache/
 *.tgz
 .turbo/
+
+# Generated Rust lockfiles (workspace-free crates)
+Cargo.lock

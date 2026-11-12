@@ -19,11 +19,7 @@ import {
   X402_SCHEME,
   X402_VERSION,
 } from '../constants.js';
-import type {
-  ErrorResponse,
-  PaymentRequired,
-  QuoteRequest,
-} from '../types.js';
+import type { ErrorResponse, PaymentRequired, QuoteRequest } from '../types.js';
 
 /** Service pricing in display units with PRICE_DECIMALS precision. */
 export const SERVICE_PRICING: Readonly<Record<string, string>> = Object.freeze({
@@ -171,6 +167,7 @@ export function createQuoteRouter(options: QuoteRouterOptions): Router {
             feeBps: options.feeBps,
             priceDecimals: PRICE_DECIMALS,
             tokenDecimals: TOKEN_DECIMALS,
+            paymentFlow: 'upfront',
           },
         },
       ],

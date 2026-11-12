@@ -92,7 +92,10 @@ function validateAcceptsEntry(entry: unknown, index: number, headerName: string)
     throw new PaymentHeaderError(`${headerName}: accepts[${index}] must be an object`, headerName);
   }
   if (entry.scheme !== 'exact') {
-    throw new PaymentHeaderError(`${headerName}: accepts[${index}].scheme must be "exact"`, headerName);
+    throw new PaymentHeaderError(
+      `${headerName}: accepts[${index}].scheme must be "exact"`,
+      headerName
+    );
   }
   const network = requireString(entry.network, `accepts[${index}].network`, headerName);
   if (!network.startsWith('near:')) {
@@ -150,10 +153,16 @@ export function parsePaymentRequired(value: unknown): PaymentRequired {
     throw new PaymentHeaderError('PAYMENT-REQUIRED must be a JSON object', PAYMENT_REQUIRED_HEADER);
   }
   if (value.x402Version !== X402_VERSION) {
-    throw new PaymentHeaderError('PAYMENT-REQUIRED: x402Version must be 2', PAYMENT_REQUIRED_HEADER);
+    throw new PaymentHeaderError(
+      'PAYMENT-REQUIRED: x402Version must be 2',
+      PAYMENT_REQUIRED_HEADER
+    );
   }
   if (!isRecord(value.resource)) {
-    throw new PaymentHeaderError('PAYMENT-REQUIRED: resource must be an object', PAYMENT_REQUIRED_HEADER);
+    throw new PaymentHeaderError(
+      'PAYMENT-REQUIRED: resource must be an object',
+      PAYMENT_REQUIRED_HEADER
+    );
   }
   const url = requireString(value.resource.url, 'resource.url', PAYMENT_REQUIRED_HEADER);
   if (!Array.isArray(value.accepts) || value.accepts.length === 0) {
@@ -166,7 +175,10 @@ export function parsePaymentRequired(value: unknown): PaymentRequired {
     validateAcceptsEntry(entry, index, PAYMENT_REQUIRED_HEADER)
   );
   if (value.error !== undefined && typeof value.error !== 'string') {
-    throw new PaymentHeaderError('PAYMENT-REQUIRED: error must be a string', PAYMENT_REQUIRED_HEADER);
+    throw new PaymentHeaderError(
+      'PAYMENT-REQUIRED: error must be a string',
+      PAYMENT_REQUIRED_HEADER
+    );
   }
   if (value.extensions !== undefined && !isRecord(value.extensions)) {
     throw new PaymentHeaderError(
@@ -251,7 +263,10 @@ export function buildPaymentSignature(payload: PaymentPayload): Record<string, s
     throw new PaymentHeaderError('PaymentPayload.x402Version must be 2', PAYMENT_SIGNATURE_HEADER);
   }
   if (!isRecord(payload.resource) || typeof payload.resource.url !== 'string') {
-    throw new PaymentHeaderError('PaymentPayload.resource.url is required', PAYMENT_SIGNATURE_HEADER);
+    throw new PaymentHeaderError(
+      'PaymentPayload.resource.url is required',
+      PAYMENT_SIGNATURE_HEADER
+    );
   }
   validateAcceptsEntry(payload.accepted, 0, PAYMENT_SIGNATURE_HEADER);
   assertSignedDelegateEnvelope(payload.payload);
@@ -263,7 +278,10 @@ export function parseSettlementResponse(value: unknown): SettlementResponse {
     throw new PaymentHeaderError('PAYMENT-RESPONSE must be a JSON object', PAYMENT_RESPONSE_HEADER);
   }
   if (typeof value.success !== 'boolean') {
-    throw new PaymentHeaderError('PAYMENT-RESPONSE: success must be a boolean', PAYMENT_RESPONSE_HEADER);
+    throw new PaymentHeaderError(
+      'PAYMENT-RESPONSE: success must be a boolean',
+      PAYMENT_RESPONSE_HEADER
+    );
   }
   const network = requireString(value.network, 'network', PAYMENT_RESPONSE_HEADER);
   if (!value.success && (typeof value.errorReason !== 'string' || value.errorReason.length === 0)) {
