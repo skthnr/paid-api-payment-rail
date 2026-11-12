@@ -33,6 +33,10 @@ export const MICRO_BLOCKS_PER_BLOCK = 1_000_000n;
 /** Delegated gas budgets: 30 Tgas official ft_transfer, 100 Tgas split call. */
 export const FT_TRANSFER_GAS = 30_000_000_000_000n;
 export const FT_TRANSFER_CALL_GAS = 100_000_000_000_000n;
-/** Live testnet finality lag observed against near-api-js' optimistic TTL base. */
-export const FINALITY_LAG_BLOCKS = 3n;
+/**
+ * Default allowance for the optimistic-vs-final block lag in the delegate TTL
+ * gate. The active value comes from `PORTICO_FINALITY_LAG_BLOCKS`
+ * (`FacilitatorConfig.finalityLagBlocks`, range `0..=60`).
+ */
+export const FINALITY_LAG_BLOCKS = 3;
 export const MAX_SERVICE_NAME_LENGTH = 64;

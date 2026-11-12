@@ -17,7 +17,6 @@ import {
   type SignedDelegate,
 } from 'near-api-js';
 import {
-  FINALITY_LAG_BLOCKS,
   FT_TRANSFER_CALL_GAS,
   FT_TRANSFER_GAS,
   MICRO_BLOCKS_PER_BLOCK,
@@ -451,7 +450,8 @@ export class DelegateGate {
     if (remainingBlocks <= 0n) {
       throw new GateReject('delegate_expired', 'delegate max_block_height has passed');
     }
-    if (remainingBlocks > BigInt(timeoutBlocks) + FINALITY_LAG_BLOCKS) {
+    const finalityLagBlocks = BigInt(this.config.finalityLagBlocks);
+    if (remainingBlocks > BigInt(timeoutBlocks) + finalityLagBlocks) {
       throw new GateReject(
         'delegate_expired',
         'delegate max_block_height exceeds accepted.maxTimeoutSeconds'

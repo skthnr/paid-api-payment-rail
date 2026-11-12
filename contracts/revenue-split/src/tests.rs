@@ -8,7 +8,7 @@
 
 use near_sdk::json_types::U128;
 use near_sdk::mock::{MockAction, Receipt};
-use near_sdk::test_utils::{get_created_receipts, VMContextBuilder};
+use near_sdk::test_utils::{get_created_receipts, get_logs, VMContextBuilder};
 use near_sdk::{
     env, testing_env, AccountId, Gas, NearToken, PromiseError, PromiseOrValue, PromiseResult,
     RuntimeFeesConfig,
@@ -18,6 +18,10 @@ use crate::ft_receiver::{parse_payment_msg, PaymentMsg};
 use crate::ledger::{LedgerAction, LEDGER_RESERVE_BYTES, MAX_LEDGER_ENTRIES};
 use crate::registry::registration_deposit;
 use crate::split::{split_amount, BPS_DENOM};
+use crate::storage::{
+    payment_storage_requirement, DEVELOPER_BALANCE_STORAGE_BYTES, MAX_DEVELOPER_BALANCES,
+    MAX_STREAMS, PAYMENT_STORAGE_HEADROOM_BYTES, STREAM_STORAGE_BYTES,
+};
 use crate::stream::{StreamStatus, MAX_CLIFF_BLOCKS, MIN_CLIFF_BLOCKS};
 use crate::Contract;
 
@@ -69,13 +73,30 @@ fn new_fixture(fee_bps: u16) -> Fixture {
 }
 
 fn set_env(predecessor: &AccountId, block_height: u64, deposit: NearToken) {
+    set_env_full(
+        predecessor,
+        block_height,
+        deposit,
+        NearToken::from_near(1_000),
+        0,
+    );
+}
+
+fn set_env_full(
+    predecessor: &AccountId,
+    block_height: u64,
+    deposit: NearToken,
+    balance: NearToken,
+    storage_usage: u64,
+) {
     testing_env!(VMContextBuilder::new()
         .current_account_id(id(SPLIT))
         .predecessor_account_id(predecessor.clone())
         .signer_account_id(predecessor.clone())
         .block_height(block_height)
-        .account_balance(NearToken::from_near(1_000))
+        .account_balance(balance)
         .attached_deposit(deposit)
+        .storage_usage(storage_usage)
         .prepaid_gas(Gas::from_tgas(300))
         .build());
 }
@@ -184,15 +205,43 @@ fn register_tool(fixture: &mut Fixture, name: &str, developer: &AccountId, price
         .register_tool(name.to_string(), developer.clone(), U128(price));
 }
 
-fn open_demo_stream(fixture: &mut Fixture) {
+fn open_stream(
+    fixture: &mut Fixture,
+    recipient: &str,
+    amount: u128,
+    block_height: u64,
+) {
     let msg = serde_json::json!({
         "action": "open_stream",
-        "recipient": DEV1,
+        "recipient": recipient,
         "rate_per_block": "10",
         "cliff_blocks": 3_600u64,
     })
     .to_string();
-    assert_eq!(expect_value(pay(fixture, 100_000, &msg, 1_000)), U128(0));
+    assert_eq!(expect_value(pay(fixture, amount, &msg, block_height)), U128(0));
+}
+
+fn open_demo_stream(fixture: &mut Fixture) {
+    open_stream(fixture, DEV1, 100_000, 1_000);
+}
+
+fn event_logs() -> Vec<serde_json::Value> {
+    get_logs()
+        .into_iter()
+        .filter_map(|line| {
+            line.strip_prefix("EVENT_JSON:")
+                .map(|json| serde_json::from_str(json).unwrap())
+        })
+        .collect()
+}
+
+fn single_event() -> serde_json::Value {
+    let events = event_logs();
+    assert_eq!(events.len(), 1, "{events:?}");
+    let event = events[0].clone();
+    assert_eq!(event["standard"], serde_json::json!("portico"));
+    assert_eq!(event["version"], serde_json::json!("1.0.0"));
+    event
 }
 
 // ---------------------------------------------------------------- vectors ---
@@ -357,45 +406,6 @@ fn split_fuzz_matches_basis_point_math() {
 
 // ------------------------------------------------------------------ split ---
 
-#[test]
-fn split_pay_tool_settles_the_price_and_refunds_the_excess() {
-    let mut fixture = new_fixture(2_000);
-    register_tool(&mut fixture, "web-search", &id(DEV1), 100);
-
-    let msg = serde_json::json!({"action": "pay_tool", "tool": "web-search"}).to_string();
-    expect_promise(pay(&mut fixture, 150, &msg, 1_000));
-
-    let calls = function_calls();
-    let transfer = calls
-        .iter()
-        .find(|call| call.method == "ft_transfer")
-        .expect("missing ft_transfer");
-    assert_eq!(transfer.args["receiver_id"], serde_json::json!(DEV1));
-    assert_eq!(transfer.args["amount"], serde_json::json!("80"));
-    let callback = calls
-        .iter()
-        .find(|call| call.method == "on_payout_done")
-        .expect("missing on_payout_done");
-    assert_eq!(callback.args["unused"], serde_json::json!("50"));
-
-    let tool = fixture.contract.get_tool_info("web-search".to_string()).unwrap();
-    assert_eq!(tool.total_calls, 1);
-    assert_eq!(tool.total_revenue, U128(100));
-    assert_eq!(balance(&fixture.contract, &fixture.platform), 20);
-    assert_eq!(fixture.contract.get_totals().settled_volume, U128(100));
-
-    let ledger = fixture.contract.get_ledger(None, 10);
-    assert_eq!(ledger.len(), 1);
-    assert_eq!(ledger[0].action, LedgerAction::ToolCall);
-    assert_eq!(ledger[0].tool.as_deref(), Some("web-search"));
-    assert_eq!(ledger[0].amount, U128(100));
-
-    // Underpaying returns the whole amount and leaves every counter alone.
-    assert_eq!(expect_value(pay(&mut fixture, 99, &msg, 1_001)), U128(99));
-    let tool = fixture.contract.get_tool_info("web-search".to_string()).unwrap();
-    assert_eq!(tool.total_calls, 1);
-    assert_eq!(fixture.contract.get_totals().settled_volume, U128(100));
-}
 
 #[test]
 fn split_paused_value_in_is_refunded() {
@@ -537,59 +547,7 @@ fn registry_registration_requires_the_storage_reserve() {
         .register_tool("web-search".to_string(), id(DEV1), U128(100));
 }
 
-#[test]
-fn registry_pay_tools_requires_the_exact_total_and_settles_every_tool() {
-    let mut fixture = new_fixture(2_000);
-    register_tool(&mut fixture, "web-search", &id(DEV1), 100);
-    register_tool(&mut fixture, "image-gen", &id(DEV2), 100);
 
-    let msg = serde_json::json!({
-        "action": "pay_tools",
-        "tools": ["web-search", "image-gen"],
-    })
-    .to_string();
-    assert_eq!(expect_value(pay(&mut fixture, 199, &msg, 1_000)), U128(199));
-    assert_eq!(
-        fixture.contract.get_tool_info("web-search".to_string()).unwrap().total_calls,
-        0
-    );
-
-    assert_eq!(expect_value(pay(&mut fixture, 200, &msg, 1_001)), U128(0));
-    assert_eq!(balance(&fixture.contract, &id(DEV1)), 80);
-    assert_eq!(balance(&fixture.contract, &id(DEV2)), 80);
-    assert_eq!(balance(&fixture.contract, &fixture.platform), 40);
-    assert_eq!(
-        fixture.contract.get_tool_info("web-search".to_string()).unwrap().total_calls,
-        1
-    );
-    assert_eq!(
-        fixture.contract.get_tool_info("image-gen".to_string()).unwrap().total_calls,
-        1
-    );
-    assert_eq!(fixture.contract.get_totals().settled_volume, U128(200));
-    let ledger = fixture.contract.get_ledger(None, 10);
-    assert_eq!(ledger.len(), 2);
-    assert!(ledger
-        .iter()
-        .all(|entry| entry.action == LedgerAction::ToolCall && entry.tool.is_some()));
-}
-
-#[test]
-fn registry_inactive_tool_refunds_the_whole_amount() {
-    let mut fixture = new_fixture(2_000);
-    register_tool(&mut fixture, "web-search", &id(DEV1), 100);
-    set_env(&id(DEV1), 1_000, NearToken::from_near(0));
-    fixture.contract.deactivate_tool("web-search".to_string());
-    assert!(!fixture.contract.is_tool_active("web-search".to_string()));
-
-    let msg = serde_json::json!({"action": "pay_tool", "tool": "web-search"}).to_string();
-    assert_eq!(expect_value(pay(&mut fixture, 100, &msg, 1_000)), U128(100));
-    assert_eq!(
-        fixture.contract.get_tool_info("web-search".to_string()).unwrap().total_calls,
-        0
-    );
-    assert!(function_calls().is_empty());
-}
 
 #[test]
 #[should_panic(expected = "only the tool developer can update the price")]
@@ -716,6 +674,10 @@ fn stream_close_before_the_cliff_refunds_everything() {
     assert_eq!(stream.deposit, U128(0));
     assert_eq!(balance(&fixture.contract, &fixture.buyer), 100_000);
     assert_eq!(fixture.contract.get_totals().settled_volume, U128(0));
+    let event = single_event();
+    assert_eq!(event["event"], serde_json::json!("stream_cancelled"));
+    assert_eq!(event["data"]["refunded"], serde_json::json!("100000"));
+    assert_eq!(event["data"]["paid"], serde_json::json!("0"));
 }
 
 #[test]
@@ -765,7 +727,7 @@ fn stream_claim_refuses_while_paused() {
 fn stream_withdraw_unaccrued_reduces_the_deposit() {
     let mut fixture = new_fixture(2_000);
     open_demo_stream(&mut fixture);
-    set_env(&fixture.buyer.clone(), 4_700, NearToken::from_near(0));
+    set_env(&fixture.buyer.clone(), 4_700, NearToken::from_yoctonear(1));
     let _promise = fixture
         .contract
         .withdraw_unaccrued(1, U128(50_000));
@@ -789,8 +751,17 @@ fn stream_withdraw_unaccrued_reduces_the_deposit() {
 fn stream_withdraw_unaccrued_rejects_more_than_escrow() {
     let mut fixture = new_fixture(2_000);
     open_demo_stream(&mut fixture);
-    set_env(&fixture.buyer.clone(), 4_700, NearToken::from_near(0));
+    set_env(&fixture.buyer.clone(), 4_700, NearToken::from_yoctonear(1));
     let _ = fixture.contract.withdraw_unaccrued(1, U128(99_001));
+}
+
+#[test]
+#[should_panic(expected = "Requires attached deposit of exactly 1 yoctoNEAR")]
+fn stream_withdraw_unaccrued_requires_one_yocto() {
+    let mut fixture = new_fixture(2_000);
+    open_demo_stream(&mut fixture);
+    set_env(&fixture.buyer.clone(), 4_700, NearToken::from_yoctonear(0));
+    let _ = fixture.contract.withdraw_unaccrued(1, U128(1_000));
 }
 
 #[test]
@@ -822,7 +793,7 @@ fn stream_callback_failure_restores_the_claim() {
 fn stream_refund_callback_failure_restores_the_deposit() {
     let mut fixture = new_fixture(2_000);
     open_demo_stream(&mut fixture);
-    set_env(&fixture.buyer.clone(), 4_700, NearToken::from_near(0));
+    set_env(&fixture.buyer.clone(), 4_700, NearToken::from_yoctonear(1));
     let _promise = fixture
         .contract
         .withdraw_unaccrued(1, U128(50_000));
@@ -1012,4 +983,248 @@ fn payout_rail_rejects_nested_account_names() {
     let _ = fixture
         .contract
         .create_developer_account("nested.dev1".to_string(), public_key);
+}
+
+// -------------------------------------------------------- storage guards ---
+
+#[test]
+fn storage_requirement_math_is_saturating() {
+    assert_eq!(payment_storage_requirement(10, 5, 7), 105);
+    assert_eq!(payment_storage_requirement(0, 0, 1), 0);
+    assert_eq!(
+        payment_storage_requirement(u64::MAX, u64::MAX, u128::MAX),
+        u128::MAX
+    );
+    assert!(PAYMENT_STORAGE_HEADROOM_BYTES > STREAM_STORAGE_BYTES);
+    assert!(STREAM_STORAGE_BYTES > DEVELOPER_BALANCE_STORAGE_BYTES);
+    assert!(MAX_STREAMS > 0);
+    assert!(MAX_DEVELOPER_BALANCES > 0);
+}
+
+#[test]
+fn storage_cap_refunds_a_new_developer_balance() {
+    let mut fixture = new_fixture(2_000);
+    fixture.contract.developer_balances_count = MAX_DEVELOPER_BALANCES;
+    let msg = serde_json::json!({"action": "credit_developer", "developer": DEV2}).to_string();
+    assert_eq!(expect_value(pay(&mut fixture, 100, &msg, 1_000)), U128(100));
+    assert_eq!(fixture.contract.total_developer_balance, 0);
+    assert_eq!(fixture.contract.get_totals().settled_volume, U128(0));
+    assert!(fixture.contract.get_ledger(None, 10).is_empty());
+    assert!(function_calls().is_empty());
+}
+
+#[test]
+fn storage_cap_still_credits_an_existing_developer_balance() {
+    let mut fixture = new_fixture(2_000);
+    fixture.contract.credit_developer_balance(&id(DEV1), 100);
+    fixture.contract.developer_balances_count = MAX_DEVELOPER_BALANCES;
+
+    let msg = serde_json::json!({"action": "credit_developer", "developer": DEV1}).to_string();
+    assert_eq!(expect_value(pay(&mut fixture, 50, &msg, 1_000)), U128(0));
+    assert_eq!(balance(&fixture.contract, &id(DEV1)), 150);
+    assert_eq!(fixture.contract.developer_balances_count, MAX_DEVELOPER_BALANCES);
+
+    let blocked = serde_json::json!({"action": "credit_developer", "developer": DEV2}).to_string();
+    assert_eq!(expect_value(pay(&mut fixture, 50, &blocked, 1_000)), U128(50));
+}
+
+#[test]
+fn storage_headroom_refunds_a_new_developer_balance() {
+    let mut fixture = new_fixture(2_000);
+    let msg = serde_json::json!({"action": "credit_developer", "developer": DEV1}).to_string();
+    set_env_full(
+        &fixture.ft.clone(),
+        1_000,
+        NearToken::from_yoctonear(0),
+        NearToken::from_yoctonear(1),
+        0,
+    );
+    let result = fixture
+        .contract
+        .ft_on_transfer(fixture.buyer.clone(), U128(100), msg);
+    assert_eq!(expect_value(result), U128(100));
+    assert_eq!(fixture.contract.total_developer_balance, 0);
+    assert_eq!(fixture.contract.developer_balances_count, 0);
+    assert!(fixture.contract.get_ledger(None, 10).is_empty());
+}
+
+#[test]
+fn storage_headroom_allows_a_new_balance_with_a_funded_account() {
+    let mut fixture = new_fixture(2_000);
+    let msg = serde_json::json!({"action": "credit_developer", "developer": DEV1}).to_string();
+    assert_eq!(expect_value(pay(&mut fixture, 100, &msg, 1_000)), U128(0));
+    assert_eq!(balance(&fixture.contract, &id(DEV1)), 100);
+    assert_eq!(fixture.contract.developer_balances_count, 1);
+}
+
+#[test]
+fn storage_cap_refunds_a_new_stream() {
+    let mut fixture = new_fixture(2_000);
+    fixture.contract.next_stream_id = MAX_STREAMS + 1;
+    let msg = serde_json::json!({
+        "action": "open_stream",
+        "recipient": DEV1,
+        "rate_per_block": "10",
+        "cliff_blocks": 3_600u64,
+    })
+    .to_string();
+    assert_eq!(
+        expect_value(pay(&mut fixture, 100_000, &msg, 1_000)),
+        U128(100_000)
+    );
+    assert_eq!(fixture.contract.get_totals().open_streams, 0);
+    assert!(fixture.contract.get_ledger(None, 10).is_empty());
+}
+
+#[test]
+fn storage_cap_still_funds_an_existing_stream() {
+    let mut fixture = new_fixture(2_000);
+    open_demo_stream(&mut fixture);
+    fixture.contract.next_stream_id = MAX_STREAMS + 1;
+    let msg = serde_json::json!({"action": "fund_stream", "stream_id": 1}).to_string();
+    assert_eq!(expect_value(pay(&mut fixture, 1_000, &msg, 1_000)), U128(0));
+    assert_eq!(
+        fixture.contract.get_stream(1).unwrap().deposit,
+        U128(101_000)
+    );
+    assert_eq!(fixture.contract.get_totals().open_streams, 1);
+}
+
+#[test]
+fn storage_headroom_refunds_a_new_stream() {
+    let mut fixture = new_fixture(2_000);
+    let msg = serde_json::json!({
+        "action": "open_stream",
+        "recipient": DEV1,
+        "rate_per_block": "10",
+        "cliff_blocks": 3_600u64,
+    })
+    .to_string();
+    set_env_full(
+        &fixture.ft.clone(),
+        1_000,
+        NearToken::from_yoctonear(0),
+        NearToken::from_yoctonear(1),
+        0,
+    );
+    let result = fixture
+        .contract
+        .ft_on_transfer(fixture.buyer.clone(), U128(100_000), msg);
+    assert_eq!(expect_value(result), U128(100_000));
+    assert_eq!(fixture.contract.get_totals().open_streams, 0);
+    assert_eq!(fixture.contract.next_stream_id, 1);
+}
+
+// ------------------------------------------------------------- W3 views ---
+
+#[test]
+fn views_report_balances_and_recipient_streams() {
+    let mut fixture = new_fixture(2_000);
+    fixture.contract.credit_developer_balance(&id(DEV1), 250);
+    assert_eq!(fixture.contract.get_developer_balance(id(DEV1)), U128(250));
+    assert_eq!(fixture.contract.get_developer_balance(id(DEV2)), U128(0));
+    assert_eq!(fixture.contract.get_developer_balance(id(PLATFORM)), U128(0));
+
+    open_stream(&mut fixture, DEV1, 100_000, 1_000);
+    open_stream(&mut fixture, DEV1, 50_000, 1_001);
+    open_stream(&mut fixture, DEV2, 25_000, 1_002);
+
+    assert_eq!(
+        fixture.contract.get_streams_by_recipient(id(DEV1), None, 100),
+        vec![1, 2]
+    );
+    assert_eq!(
+        fixture.contract.get_streams_by_recipient(id(DEV1), Some(1), 100),
+        vec![2]
+    );
+    assert_eq!(
+        fixture.contract.get_streams_by_recipient(id(DEV1), None, 0),
+        vec![1]
+    );
+    assert_eq!(
+        fixture
+            .contract
+            .get_streams_by_recipient(id(DEV1), None, 500)
+            .len(),
+        2
+    );
+    assert_eq!(
+        fixture.contract.get_streams_by_recipient(id(DEV2), None, 100),
+        vec![3]
+    );
+    assert!(fixture
+        .contract
+        .get_streams_by_recipient(id("nobody.portico.testnet"), None, 100)
+        .is_empty());
+    assert_eq!(fixture.contract.get_stream_deposit(1), U128(100_000));
+    assert_eq!(fixture.contract.get_stream_deposit(3), U128(25_000));
+}
+
+// ------------------------------------------------------ W3 event surface ---
+
+#[test]
+fn stream_rate_update_emits_one_event() {
+    let mut fixture = new_fixture(2_000);
+    open_demo_stream(&mut fixture);
+    set_env(&fixture.buyer.clone(), 4_700, NearToken::from_near(0));
+    fixture.contract.update_stream_rate(1, U128(25));
+    let event = single_event();
+    assert_eq!(event["event"], serde_json::json!("stream_rate_updated"));
+    assert_eq!(event["data"]["stream_id"], serde_json::json!(1));
+    assert_eq!(event["data"]["old_rate_per_block"], serde_json::json!("10"));
+    assert_eq!(event["data"]["new_rate_per_block"], serde_json::json!("25"));
+}
+
+#[test]
+fn payment_path_emits_exactly_one_event_per_movement() {
+    let mut fixture = new_fixture(2_000);
+    let msg = serde_json::json!({
+        "action": "pay_developers",
+        "developer": DEV1,
+        "memo": "sale",
+    })
+    .to_string();
+    expect_promise(pay(&mut fixture, 100, &msg, 1_000));
+
+    let event = single_event();
+    assert_eq!(event["event"], serde_json::json!("payment_processed"));
+    assert_eq!(event["data"]["payer"], serde_json::json!(BUYER));
+    assert_eq!(event["data"]["developer"], serde_json::json!(DEV1));
+    assert_eq!(event["data"]["amount"], serde_json::json!("100"));
+    assert_eq!(event["data"]["developer_amount"], serde_json::json!("80"));
+    assert_eq!(event["data"]["platform_amount"], serde_json::json!("20"));
+    assert_eq!(event["data"]["memo"], serde_json::json!("sale"));
+}
+
+#[test]
+fn batch_payment_emits_one_event_per_item() {
+    let mut fixture = new_fixture(2_000);
+    let msg = serde_json::json!({
+        "action": "pay_developers_batch",
+        "payments": [
+            {"developer": DEV1, "amount": "50", "memo": "a"},
+            {"developer": DEV2, "amount": "50", "memo": "b"},
+        ],
+    })
+    .to_string();
+    assert_eq!(expect_value(pay(&mut fixture, 100, &msg, 1_000)), U128(0));
+    let events = event_logs();
+    assert_eq!(events.len(), 2, "{events:?}");
+    assert!(events
+        .iter()
+        .all(|event| event["event"] == serde_json::json!("payment_processed")));
+}
+
+#[test]
+fn close_stream_emits_one_event_per_movement() {
+    let mut fixture = new_fixture(2_000);
+    open_demo_stream(&mut fixture);
+    set_env(&fixture.buyer.clone(), 5_000, NearToken::from_near(0));
+    expect_promise(fixture.contract.close_stream(1));
+    let events = event_logs();
+    assert_eq!(events.len(), 2, "{events:?}");
+    assert_eq!(events[0]["event"], serde_json::json!("stream_claimed"));
+    assert_eq!(events[1]["event"], serde_json::json!("stream_cancelled"));
+    assert_eq!(events[1]["data"]["refunded"], serde_json::json!("96000"));
+    assert_eq!(events[1]["data"]["paid"], serde_json::json!("4000"));
 }

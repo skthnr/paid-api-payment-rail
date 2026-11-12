@@ -75,7 +75,7 @@ pub fn index_add(index: &mut LookupMap<AccountId, Vec<String>>, developer: &Acco
     index.insert(developer.clone(), names);
 }
 
-/// Removes `name` from `developer`'s tool list, dropping the list when empty.
+/// Removes `name` from `developer`'s tool list; empty lists are retained.
 pub fn index_remove(
     index: &mut LookupMap<AccountId, Vec<String>>,
     developer: &AccountId,
@@ -88,9 +88,5 @@ pub fn index_remove(
         .into_iter()
         .filter(|existing| existing.as_str() != name)
         .collect();
-    if filtered.is_empty() {
-        index.remove(developer);
-    } else {
-        index.insert(developer.clone(), filtered);
-    }
+    index.insert(developer.clone(), filtered);
 }

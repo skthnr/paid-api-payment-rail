@@ -52,6 +52,10 @@ pub const MIN_CLIFF_BLOCKS: u64 = 3_600;
 /// Highest accepted `cliff_blocks` duration, in blocks (365 days at 1 s/block).
 pub const MAX_CLIFF_BLOCKS: u64 = 31_536_000;
 
+/// Largest page `get_streams_by_recipient` returns, regardless of the
+/// requested limit.
+pub const MAX_STREAM_PAGE: u32 = 100;
+
 /// Lifecycle of a stream.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[near(serializers = [borsh, json])]
@@ -335,6 +339,31 @@ impl Contract {
             .unwrap_or_else(|| env::panic_str("stream not found"))
     }
 
+    /// Returns the stream ids of `account`'s recipient index with `id >
+    /// after_id`, oldest first.
+    ///
+    /// `after_id = None` starts at the first stream; `limit` is clamped to
+    /// `1..=MAX_STREAM_PAGE`, so a caller cannot request an unbounded page.
+    pub fn get_streams_by_recipient(
+        &self,
+        account: AccountId,
+        after_id: Option<u64>,
+        limit: u32,
+    ) -> Vec<u64> {
+        let limit = limit.clamp(1, MAX_STREAM_PAGE) as usize;
+        let after = after_id.unwrap_or(0);
+        self.streams_by_recipient
+            .get(&account)
+            .map(|ids| {
+                ids.iter()
+                    .copied()
+                    .filter(|stream_id| *stream_id > after)
+                    .take(limit)
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
     /// Closes a stream; the subscriber only.
     ///
     /// Settles `accrued - withdrawn` to the recipient through one FT transfer
@@ -408,6 +437,9 @@ impl Contract {
             None,
             None,
         );
+        // Subscriber-only settlement of escrow the subscriber already funded:
+        // the payment-path caps do not gate it, and a storage abort would
+        // revert the whole close rather than lose a sale.
         self.credit_developer_balance(&subscriber, refund);
         LedgerEvent::StreamCancelled {
             stream_id,
@@ -525,18 +557,27 @@ impl Contract {
             stream.paused_blocks = 0;
         }
         stream.paused_at = 0;
+        let old_rate_per_block = stream.rate_per_block;
         stream.rate_per_block = rate_per_block;
         self.streams.insert(stream_id, stream);
+        LedgerEvent::StreamRateUpdated {
+            stream_id,
+            old_rate_per_block,
+            new_rate_per_block: rate_per_block,
+        }
+        .emit();
     }
 
     /// Refunds unaccrued escrow to the subscriber through one FT transfer.
     ///
-    /// The subscriber only; rejects zero and any amount above
-    /// `deposit - accrued`. The deposit is reduced before the transfer is
-    /// scheduled and restored by [`Contract::on_stream_refund_done`] on
-    /// failure, which also leaves the recovery path open on a closed stream
-    /// whose refund leg failed.
+    /// The subscriber only; requires exactly one yoctoNEAR, rejects zero and
+    /// any amount above `deposit - accrued`. The deposit is reduced before
+    /// the transfer is scheduled and restored by
+    /// [`Contract::on_stream_refund_done`] on failure, which also leaves the
+    /// recovery path open on a closed stream whose refund leg failed.
+    #[payable]
     pub fn withdraw_unaccrued(&mut self, stream_id: u64, amount: U128) -> Promise {
+        near_sdk::assert_one_yocto();
         let mut stream = self
             .streams
             .get(&stream_id)
@@ -584,6 +625,9 @@ impl Contract {
         rate_per_block: u128,
         cliff_blocks: u64,
     ) -> bool {
+        if !self.stream_creation_allowed() {
+            return false;
+        }
         if validate_cliff_blocks(cliff_blocks).is_err() || validate_rate(rate_per_block).is_err() {
             return false;
         }

@@ -3,10 +3,14 @@
  *
  * The list comes from the settlement cache (live lock + short-lived history).
  * A hash that is no longer cached is resolved with `tx_status FINAL`, still
- * requiring the inner FT receipt to be `SuccessValue`.
+ * requiring the inner FT receipt to be `SuccessValue`. The outer transaction's
+ * signer is the relayer, never the payer: for an uncached hash the response
+ * reports the delegate action's `sender_id` only when the transaction shape
+ * exposes it safely, and otherwise omits `payer` entirely.
  */
 
 import { Router, type NextFunction, type Request, type Response } from 'express';
+import { isAccountId } from '../config.js';
 import type { SettlementCache, SettlementRecord } from '../services/cache.js';
 import { isRecord } from '../guards.js';
 import type { TransactionResponse } from '../services/near.js';
@@ -40,10 +44,79 @@ function toRecordView(record: SettlementRecord): PaymentRecordView {
   };
 }
 
-function responseSigner(response: TransactionResponse): string | null {
+/**
+ * Reads the NEP-366 delegate sender from one `SignedDelegate` action.
+ *
+ * RPC clients serialize the action as `signedDelegate.delegateAction`,
+ * `signedDelegateAction` or the snake_case equivalents; every access is
+ * shape-guarded so an unexpected encoding yields `null` instead of a guess.
+ */
+function delegateSender(action: Record<string, unknown>): string | null {
+  const directSender = action.senderId ?? action.sender_id;
+  if (typeof directSender === 'string') {
+    return directSender;
+  }
+  const directDelegate = action.delegateAction ?? action.delegate_action;
+  if (isRecord(directDelegate)) {
+    const senderId = directDelegate.senderId ?? directDelegate.sender_id;
+    if (typeof senderId === 'string') {
+      return senderId;
+    }
+  }
+  const candidates = [
+    action.signedDelegate,
+    action.signed_delegate,
+    action.signedDelegateAction,
+    action.signed_delegate_action,
+  ];
+  for (const candidate of candidates) {
+    if (!isRecord(candidate)) {
+      continue;
+    }
+    const nested = candidate.delegateAction ?? candidate.delegate_action;
+    if (isRecord(nested)) {
+      const senderId = nested.senderId ?? nested.sender_id;
+      if (typeof senderId === 'string') {
+        return senderId;
+      }
+      continue;
+    }
+    const direct = candidate.senderId ?? candidate.sender_id;
+    if (typeof direct === 'string') {
+      return direct;
+    }
+  }
+  return null;
+}
+
+/**
+ * Payer of a relayed settlement, or `null` when it cannot be read safely.
+ *
+ * The outer transaction signer is the relayer and is never returned as the
+ * payer; a delegate whose sender equals the relayer is also rejected by the
+ * gate, and this helper keeps that invariant for old/foreign transactions.
+ */
+function delegatedPayer(response: TransactionResponse, relayerId: string): string | null {
   const transaction: unknown = response.transaction;
-  if (isRecord(transaction) && typeof transaction.signer_id === 'string') {
-    return transaction.signer_id;
+  if (!isRecord(transaction)) {
+    return null;
+  }
+  const actions: unknown = transaction.actions;
+  if (!Array.isArray(actions)) {
+    return null;
+  }
+  for (const entry of actions) {
+    if (!isRecord(entry)) {
+      continue;
+    }
+    const kind = typeof entry.action === 'string' ? entry.action.toLowerCase() : '';
+    if (kind !== 'signeddelegate' && kind !== 'signed_delegate') {
+      continue;
+    }
+    const senderId = delegateSender(entry);
+    if (senderId !== null && isAccountId(senderId) && senderId !== relayerId) {
+      return senderId;
+    }
   }
   return null;
 }
@@ -104,7 +177,7 @@ export function createPaymentsRouter(options: PaymentsRouterOptions): Router {
       } else {
         settlement.errorReason = inner.errorReason ?? 'settlement_failed';
       }
-      const payer = responseSigner(final);
+      const payer = delegatedPayer(final, options.relayerId);
       if (payer !== null) {
         settlement.payer = payer;
       }

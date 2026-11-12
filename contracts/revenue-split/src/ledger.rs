@@ -19,8 +19,12 @@ pub const MAX_LEDGER_ENTRIES: u64 = 100_000;
 /// `ft_on_transfer` receives no attached deposit from the FT, so the ledger
 /// entry, the first `developer_balances` write for each payee and the tool
 /// counter updates of a sale are unfunded. `register_tool` therefore requires
-/// this fixed reserve on top of its own storage growth, which keeps the
-/// capped ledger and the first balance writes from aborting a sale.
+/// this fixed reserve on top of its own storage growth. The reserve is not the
+/// only backstop: [`crate::storage`] caps the developer-balance and stream key
+/// sets and checks the account balance against
+/// `storage_byte_cost * (storage_usage + entry bytes + headroom)` before a new
+/// payment-path key, so a sale that outgrows the reserve refunds instead of
+/// aborting.
 pub const LEDGER_RESERVE_BYTES: u64 = 8_192;
 
 /// Largest page `get_ledger` returns, regardless of the requested limit.

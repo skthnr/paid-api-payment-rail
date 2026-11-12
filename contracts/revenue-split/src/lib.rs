@@ -18,6 +18,7 @@ pub mod ft_receiver;
 pub mod ledger;
 pub mod registry;
 pub mod split;
+pub mod storage;
 pub mod stream;
 
 use events::LedgerEvent;
@@ -38,6 +39,7 @@ pub struct Contract {
     developer_tools: LookupMap<AccountId, Vec<String>>,
     tools_count: u64,
     developer_balances: LookupMap<AccountId, u128>,
+    developer_balances_count: u64,
     total_developer_balance: u128,
     streams: LookupMap<u64, Stream>,
     streams_by_recipient: LookupMap<AccountId, Vec<u64>>,
@@ -76,6 +78,7 @@ impl Contract {
             developer_tools: LookupMap::new(b"devtools".as_slice()),
             tools_count: 0,
             developer_balances: LookupMap::new(b"devbal".as_slice()),
+            developer_balances_count: 0,
             total_developer_balance: 0,
             streams: LookupMap::new(b"streams".as_slice()),
             streams_by_recipient: LookupMap::new(b"streambyrcpt".as_slice()),
@@ -134,6 +137,15 @@ impl Contract {
             .unwrap_or_default()
     }
 
+    /// Returns `account`'s withdrawable developer balance in raw FT units.
+    ///
+    /// The same map backs the platform wallet's fee balance and subscriber
+    /// stream refunds, so the view also reports those credits. Unknown accounts
+    /// read as zero.
+    pub fn get_developer_balance(&self, account: AccountId) -> U128 {
+        U128(self.developer_balances.get(&account).copied().unwrap_or(0))
+    }
+
     /// Returns whether a tool exists and is accepting calls.
     pub fn is_tool_active(&self, name: String) -> bool {
         self.tools.get(&name).is_some_and(|tool| tool.active)
@@ -187,15 +199,20 @@ impl Contract {
     /// Replaces the payment FT; owner only.
     ///
     /// The FT account is also the `ft_on_transfer` predecessor allowlist, so
-    /// this rotates which contract may fund payments. No event variant exists
-    /// for this admin change; the platform events cover fee and wallet.
+    /// this rotates which contract may fund payments.
     pub fn set_ft_account(&mut self, ft_account_id: AccountId) {
         self.assert_owner();
         require!(
             ft_account_id != self.ft_account_id,
             "FT account is unchanged"
         );
-        self.ft_account_id = ft_account_id;
+        let old_ft_account = self.ft_account_id.clone();
+        self.ft_account_id = ft_account_id.clone();
+        LedgerEvent::FtAccountUpdated {
+            old_ft_account,
+            new_ft_account: ft_account_id,
+        }
+        .emit();
     }
 
     /// Enables or disables value-in operations; owner only.
@@ -205,6 +222,7 @@ impl Contract {
     pub fn set_paused(&mut self, paused: bool) {
         self.assert_owner();
         self.paused = paused;
+        LedgerEvent::PausedChanged { paused }.emit();
     }
 
     /// Deactivates any tool; owner only.
@@ -216,7 +234,13 @@ impl Contract {
             .cloned()
             .unwrap_or_else(|| env::panic_str("tool not found"));
         tool.active = false;
-        self.tools.insert(name, tool);
+        let developer = tool.developer.clone();
+        self.tools.insert(name.clone(), tool);
+        LedgerEvent::ToolDeactivated {
+            tool: name,
+            developer,
+        }
+        .emit();
     }
 
     /// Registers a tool and charges its storage growth to the caller.
@@ -225,7 +249,11 @@ impl Contract {
     /// added` plus [`ledger::LEDGER_RESERVE_BYTES`] of storage, the reserve
     /// that funds the unfunded payment-path writes (ledger entries, first
     /// developer-balance touches, tool counters) a registered tool can
-    /// trigger. Any excess is refunded to the predecessor.
+    /// trigger. Any excess is refunded to the predecessor. On top of the
+    /// reserve, the payment paths enforce [`storage::MAX_DEVELOPER_BALANCES`],
+    /// [`storage::MAX_STREAMS`] and the
+    /// [`storage::PAYMENT_STORAGE_HEADROOM_BYTES`] account-balance check, so a
+    /// sale that would outgrow the reserve refunds instead of aborting.
     #[payable]
     pub fn register_tool(&mut self, name: String, developer: AccountId, price: U128) {
         self.assert_not_paused();
@@ -336,10 +364,17 @@ impl Contract {
             tool.developer != new_developer,
             "tool already belongs to the new developer"
         );
+        let old_developer = tool.developer.clone();
         registry::index_remove(&mut self.developer_tools, &tool.developer, &name);
         registry::index_add(&mut self.developer_tools, &new_developer, &name);
-        tool.developer = new_developer;
-        self.tools.insert(name, tool);
+        tool.developer = new_developer.clone();
+        self.tools.insert(name.clone(), tool);
+        LedgerEvent::ToolDeveloperUpdated {
+            tool: name,
+            old_developer,
+            new_developer,
+        }
+        .emit();
     }
 
     /// Stops a tool from accepting calls; the tool's developer only.
@@ -376,7 +411,21 @@ impl Contract {
             "only the tool developer can change tool status"
         );
         tool.active = active;
-        self.tools.insert(name, tool);
+        let developer = tool.developer.clone();
+        self.tools.insert(name.clone(), tool);
+        if active {
+            LedgerEvent::ToolReactivated {
+                tool: name,
+                developer,
+            }
+            .emit();
+        } else {
+            LedgerEvent::ToolDeactivated {
+                tool: name,
+                developer,
+            }
+            .emit();
+        }
     }
 }
 

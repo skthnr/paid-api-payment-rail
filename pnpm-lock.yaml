@@ -23,12 +23,55 @@ importers:
       eslint:
         specifier: ^8.57.1
         version: 8.57.1
+      near-api-js:
+        specifier: 7.5.3
+        version: 7.5.3
       prettier:
         specifier: ^3.4.2
         version: 3.10.0
+      tsx:
+        specifier: ^4.19.2
+        version: 4.23.15
       typescript:
         specifier: ~5.7.2
         version: 5.7.3
+
+  examples/paywall:
+    dependencies:
+      '@portico/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+      cors:
+        specifier: 2.8.5
+        version: 2.8.5
+      dotenv:
+        specifier: ^16.3.1
+        version: 16.6.1
+      express:
+        specifier: 4.22.2
+        version: 4.22.2
+      helmet:
+        specifier: ^7.1.0
+        version: 7.2.0
+    devDependencies:
+      '@types/cors':
+        specifier: ^2.8.17
+        version: 2.8.19
+      '@types/express':
+        specifier: ^4.17.21
+        version: 4.17.25
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.20.5
+      tsx:
+        specifier: ^4.19.2
+        version: 4.23.15
+      typescript:
+        specifier: ~5.7.2
+        version: 5.7.3
+      vitest:
+        specifier: ^2.1.9
+        version: 2.1.9(@types/node@22.20.5)
 
   facilitator:
     dependencies:
@@ -72,6 +115,28 @@ importers:
       typescript:
         specifier: ~5.7.2
         version: 5.7.3
+
+  mcp:
+    dependencies:
+      '@portico/sdk':
+        specifier: workspace:*
+        version: link:../packages/sdk
+      near-api-js:
+        specifier: 7.5.3
+        version: 7.5.3
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.20.5
+      tsx:
+        specifier: ^4.19.2
+        version: 4.23.15
+      typescript:
+        specifier: ~5.7.2
+        version: 5.7.3
+      vitest:
+        specifier: ^2.1.9
+        version: 2.1.9(@types/node@22.20.5)
 
   packages/sdk:
     dependencies:

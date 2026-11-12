@@ -119,9 +119,3 @@ export function inspectInnerTransfer(
   }
   return { ok: false, errorReason: 'inner_receipt_pending' };
 }
-
-/** Final execution status is a failure (transaction or first leaf receipt). */
-export function finalStatusFailed(response: FinalExecutionOutcome): boolean {
-  const record = statusRecord(response.status);
-  return record !== null && 'Failure' in record;
-}

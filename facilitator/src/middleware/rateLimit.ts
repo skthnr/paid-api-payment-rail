@@ -50,15 +50,3 @@ export function createRateLimiter(config: Partial<RateLimitConfig> = {}) {
     skip: (req: Request): boolean => req.path === '/health',
   });
 }
-
-export function createSettlementRateLimiter() {
-  return createRateLimiter({ windowMs: 60 * 1000, maxRequests: 20 });
-}
-
-export function createVerificationRateLimiter() {
-  return createRateLimiter({ windowMs: 60 * 1000, maxRequests: 200 });
-}
-
-export function createQuoteRateLimiter() {
-  return createRateLimiter({ windowMs: 60 * 1000, maxRequests: 500 });
-}

@@ -3,7 +3,14 @@
 use near_sdk::json_types::U128;
 use near_sdk::{near, AccountId};
 
-/// Every value-moving or registry mutation emits exactly one of these.
+/// Every state transition emits exactly one of these; a compound transition
+/// emits one event per movement (`close_stream` settles an optional
+/// `StreamClaimed` and then always emits `StreamCancelled`).
+///
+/// The enum carries 20 variants: the 14 W2 payment, registry and stream events
+/// plus the six W3 admin/lifecycle events `PausedChanged`, `ToolDeactivated`,
+/// `ToolReactivated`, `ToolDeveloperUpdated`, `StreamRateUpdated` and
+/// `FtAccountUpdated`.
 ///
 /// The `event` field is the snake_case variant name and the `data` field
 /// carries the variant payload, so each log line is
@@ -86,6 +93,46 @@ pub enum LedgerEvent {
         /// New platform wallet.
         new_wallet: AccountId,
     },
+    /// The contract-wide pause switch changed.
+    #[event_version("1.0.0")]
+    PausedChanged {
+        /// New pause state.
+        paused: bool,
+    },
+    /// A tool stopped accepting calls.
+    #[event_version("1.0.0")]
+    ToolDeactivated {
+        /// Tool name.
+        tool: String,
+        /// Developer that owns the tool.
+        developer: AccountId,
+    },
+    /// A tool resumed accepting calls.
+    #[event_version("1.0.0")]
+    ToolReactivated {
+        /// Tool name.
+        tool: String,
+        /// Developer that owns the tool.
+        developer: AccountId,
+    },
+    /// A tool was transferred to another developer.
+    #[event_version("1.0.0")]
+    ToolDeveloperUpdated {
+        /// Tool name.
+        tool: String,
+        /// Previous developer.
+        old_developer: AccountId,
+        /// New developer.
+        new_developer: AccountId,
+    },
+    /// The payment FT account changed.
+    #[event_version("1.0.0")]
+    FtAccountUpdated {
+        /// Previous FT account.
+        old_ft_account: AccountId,
+        /// New FT account.
+        new_ft_account: AccountId,
+    },
     /// A stream deposit was credited.
     #[event_version("1.0.0")]
     StreamFunded {
@@ -111,6 +158,16 @@ pub enum LedgerEvent {
         deposit: U128,
         /// Block height at which accrual may begin.
         cliff_end_block: u64,
+    },
+    /// A stream's accrual rate changed.
+    #[event_version("1.0.0")]
+    StreamRateUpdated {
+        /// Stream id.
+        stream_id: u64,
+        /// Previous accrual per block in raw FT units.
+        old_rate_per_block: U128,
+        /// New accrual per block in raw FT units.
+        new_rate_per_block: U128,
     },
     /// A stream recipient claimed accrued funds.
     #[event_version("1.0.0")]

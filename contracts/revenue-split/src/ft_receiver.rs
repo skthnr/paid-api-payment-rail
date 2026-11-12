@@ -18,8 +18,11 @@
 //!
 //! Every rejection path returns the full transferred amount unused and writes
 //! no state: a predecessor other than the payment FT, the paused kill switch,
-//! a message that does not parse, an unknown or inactive tool, and a batch
-//! whose total does not match its prices.
+//! a message that does not parse, an unknown or inactive tool, a batch whose
+//! total does not match its prices, and a payment that would exceed the
+//! payment-path storage caps or the account-balance headroom
+//! ([`crate::storage`]). Selling never panics on storage: the payer is
+//! refunded instead.
 
 use near_sdk::json_types::U128;
 use near_sdk::{env, near, AccountId, Promise, PromiseError, PromiseOrValue};
@@ -27,7 +30,7 @@ use near_sdk::{env, near, AccountId, Promise, PromiseError, PromiseOrValue};
 use crate::events::LedgerEvent;
 use crate::ext::{ext_ft, GAS_FOR_FT_RESOLVE, GAS_FOR_FT_TRANSFER, YOCTO_ONE};
 use crate::ledger::LedgerAction;
-use crate::split::{split_amount, PaymentItem};
+use crate::split::{split_amount, PaymentItem, SplitView};
 use crate::Contract;
 use crate::ContractExt;
 
@@ -257,6 +260,15 @@ impl Contract {
     ) -> PromiseOrValue<U128> {
         let split = split_amount(amount.0, self.platform_fee_bps);
         let platform = self.platform_wallet.clone();
+        // The developer leg normally leaves by FT transfer, but
+        // `on_payout_done` credits it to the balance when that transfer fails,
+        // so the preflight reserves both keys before any state write.
+        if !self.balance_writes_allowed(&[
+            (&platform, split.platform.0),
+            (&developer, split.developer.0),
+        ]) {
+            return PromiseOrValue::Value(amount);
+        }
         self.credit_developer_balance(&platform, split.platform.0);
         self.add_settled_volume(amount.0);
         self.append_ledger_entry(
@@ -307,30 +319,43 @@ impl Contract {
         }
 
         let fee_bps = self.platform_fee_bps;
+        let mut legs: Vec<(AccountId, U128, SplitView, Option<String>)> =
+            Vec::with_capacity(payments.len());
         let mut platform_total = 0u128;
         for item in payments {
             let split = split_amount(item.amount.0, fee_bps);
             platform_total = platform_total.saturating_add(split.platform.0);
-            self.credit_developer_balance(&item.developer, split.developer.0);
+            legs.push((item.developer, item.amount, split, item.memo));
+        }
+        let platform = self.platform_wallet.clone();
+        let mut credits: Vec<(&AccountId, u128)> = legs
+            .iter()
+            .map(|(developer, _, split, _)| (developer, split.developer.0))
+            .collect();
+        credits.push((&platform, platform_total));
+        if !self.balance_writes_allowed(&credits) {
+            return PromiseOrValue::Value(amount);
+        }
+        for (developer, item_amount, split, memo) in legs {
+            self.credit_developer_balance(&developer, split.developer.0);
             self.append_ledger_entry(
                 sender.clone(),
-                item.developer.clone(),
-                item.amount.0,
+                developer.clone(),
+                item_amount.0,
                 LedgerAction::Payment,
                 None,
-                item.memo.clone(),
+                memo.clone(),
             );
             LedgerEvent::PaymentProcessed {
                 payer: sender.clone(),
-                developer: item.developer,
-                amount: item.amount,
+                developer,
+                amount: item_amount,
                 developer_amount: split.developer,
                 platform_amount: split.platform,
-                memo: item.memo,
+                memo,
             }
             .emit();
         }
-        let platform = self.platform_wallet.clone();
         self.credit_developer_balance(&platform, platform_total);
         self.add_settled_volume(amount.0);
         PromiseOrValue::Value(U128(0))
@@ -343,6 +368,9 @@ impl Contract {
         amount: U128,
         developer: AccountId,
     ) -> PromiseOrValue<U128> {
+        if !self.balance_writes_allowed(&[(&developer, amount.0)]) {
+            return PromiseOrValue::Value(amount);
+        }
         self.credit_developer_balance(&developer, amount.0);
         self.add_settled_volume(amount.0);
         self.append_ledger_entry(
@@ -385,6 +413,13 @@ impl Contract {
 
         let split = split_amount(price, self.platform_fee_bps);
         let developer = tool.developer.clone();
+        let platform = self.platform_wallet.clone();
+        if !self.balance_writes_allowed(&[
+            (&platform, split.platform.0),
+            (&developer, split.developer.0),
+        ]) {
+            return PromiseOrValue::Value(amount);
+        }
         tool.total_calls = tool
             .total_calls
             .checked_add(1)
@@ -396,7 +431,6 @@ impl Contract {
                 .unwrap_or_else(|| env::panic_str("tool revenue overflow")),
         );
         self.tools.insert(tool_name.clone(), tool);
-        let platform = self.platform_wallet.clone();
         self.credit_developer_balance(&platform, split.platform.0);
         self.add_settled_volume(price);
         self.append_ledger_entry(
@@ -458,11 +492,21 @@ impl Contract {
         }
 
         let fee_bps = self.platform_fee_bps;
+        let platform = self.platform_wallet.clone();
         let mut platform_total = 0u128;
+        let mut credits: Vec<(&AccountId, u128)> = Vec::with_capacity(resolved.len());
+        for (_, tool) in &resolved {
+            let split = split_amount(tool.price_per_call.0, fee_bps);
+            platform_total = platform_total.saturating_add(split.platform.0);
+            credits.push((&tool.developer, split.developer.0));
+        }
+        credits.push((&platform, platform_total));
+        if !self.balance_writes_allowed(&credits) {
+            return PromiseOrValue::Value(amount);
+        }
         for (name, mut tool) in resolved {
             let price = tool.price_per_call.0;
             let split = split_amount(price, fee_bps);
-            platform_total = platform_total.saturating_add(split.platform.0);
             tool.total_calls = tool
                 .total_calls
                 .checked_add(1)
@@ -492,7 +536,6 @@ impl Contract {
             }
             .emit();
         }
-        let platform = self.platform_wallet.clone();
         self.credit_developer_balance(&platform, platform_total);
         self.add_settled_volume(amount.0);
         PromiseOrValue::Value(U128(0))

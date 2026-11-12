@@ -1,0 +1,30 @@
+{
+  "name": "@portico/mcp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "portico stdio MCP server exposing x402 v2 NEAR payment tools to agents",
+  "type": "module",
+  "main": "dist/mcp-server.js",
+  "license": "Apache-2.0",
+  "engines": {
+    "node": ">=22.22.2"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "start": "tsx src/mcp-server.ts",
+    "dev": "tsx src/mcp-server.ts",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "lint": "eslint src tests --ext .ts"
+  },
+  "dependencies": {
+    "@portico/sdk": "workspace:*",
+    "near-api-js": "7.5.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "~5.7.2",
+    "vitest": "^2.1.9"
+  }
+}

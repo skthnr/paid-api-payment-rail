@@ -44,20 +44,6 @@ export interface BeginSettlementResult {
   duplicate: boolean;
 }
 
-function stableStringify(value: unknown): string {
-  if (value === null || typeof value !== 'object') {
-    return JSON.stringify(value) ?? 'null';
-  }
-  if (Array.isArray(value)) {
-    return `[${value.map(stableStringify).join(',')}]`;
-  }
-  const record = value as Record<string, unknown>;
-  return `{${Object.keys(record)
-    .sort()
-    .map(key => `${JSON.stringify(key)}:${stableStringify(record[key])}`)
-    .join(',')}}`;
-}
-
 export class SettlementCache {
   private readonly records: LRUCache<string, SettlementRecord>;
   private readonly history: LRUCache<string, SettlementRecord>;
@@ -66,10 +52,6 @@ export class SettlementCache {
     const options = { max: maxEntries, ttl: ttlMs, updateAgeOnGet: false } as const;
     this.records = new LRUCache<string, SettlementRecord>(options);
     this.history = new LRUCache<string, SettlementRecord>(options);
-  }
-
-  public static hashPayload(payload: unknown): string {
-    return createHash('sha256').update(stableStringify(payload)).digest('hex');
   }
 
   /** Hash raw bytes without re-encoding them first. */
@@ -83,19 +65,6 @@ export class SettlementCache {
 
   public get(hash: string): SettlementRecord | undefined {
     return this.records.get(hash) ?? this.history.get(hash);
-  }
-
-  /**
-   * Claim a payload for settlement. Returns `duplicate: true` when the same
-   * payload is already pending or settled; a previously failed payload may be
-   * retried.
-   */
-  public begin(
-    payload: unknown,
-    maxBlockHeight: number,
-    metadata: SettlementMetadata = {}
-  ): BeginSettlementResult {
-    return this.beginSettlement(SettlementCache.hashPayload(payload), maxBlockHeight, metadata);
   }
 
   /** Claim a payload by its precomputed hash (the signed-delegate digest). */

@@ -111,6 +111,7 @@ impl Contract {
             .unwrap_or(0);
         require!(amount > 0, "no developer balance to withdraw");
         self.developer_balances.remove(&developer);
+        self.developer_balances_count = self.developer_balances_count.saturating_sub(1);
         self.total_developer_balance = self.total_developer_balance.saturating_sub(amount);
         self.append_ledger_entry(
             developer.clone(),
@@ -133,11 +134,17 @@ impl Contract {
     /// Credits `amount` to `developer`'s withdrawable balance.
     ///
     /// Used by the payment paths that settle into a balance rather than an FT
-    /// transfer. Panics on overflow, which is unreachable for FT-denominated
-    /// state.
+    /// transfer. The cap and the storage headroom are checked by the caller
+    /// before any state write (see `Contract::balance_writes_allowed`); this
+    /// helper only keeps the live-key counter equal to the number of stored
+    /// balance keys. Panics on overflow, which is unreachable for
+    /// FT-denominated state.
     pub(crate) fn credit_developer_balance(&mut self, developer: &AccountId, amount: u128) {
         if amount == 0 {
             return;
+        }
+        if self.developer_balances.get(developer).is_none() {
+            self.developer_balances_count = self.developer_balances_count.saturating_add(1);
         }
         let balance = self
             .developer_balances
@@ -155,8 +162,17 @@ impl Contract {
 
     /// Restores a developer balance from a private callback.
     ///
-    /// Saturating and infallible: callbacks must never panic.
+    /// Saturating and infallible: callbacks must never panic and must settle
+    /// funds an earlier preflighted payment path already accepted, so the cap
+    /// is not re-checked here. If the withdrawal that failed had removed the
+    /// key, the restoration recreates it and the live-key counter follows.
     pub(crate) fn restore_developer_balance(&mut self, developer: &AccountId, amount: u128) {
+        if amount == 0 {
+            return;
+        }
+        if self.developer_balances.get(developer).is_none() {
+            self.developer_balances_count = self.developer_balances_count.saturating_add(1);
+        }
         let balance = self
             .developer_balances
             .get(developer)

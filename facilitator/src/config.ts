@@ -8,6 +8,8 @@
 
 import 'dotenv/config';
 
+import { FINALITY_LAG_BLOCKS } from './constants.js';
+
 export type PorticoNetwork = `near:${string}`;
 
 export interface FacilitatorConfig {
@@ -26,6 +28,7 @@ export interface FacilitatorConfig {
   host: string;
   facilitatorUrl: string;
   maxTimeoutSeconds: number;
+  finalityLagBlocks: number;
   settlementCacheTtlMs: number;
   rateLimitWindowMs: number;
   rateLimitMax: number;
@@ -151,6 +154,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): FacilitatorCon
     host: env.HOST ?? '0.0.0.0',
     facilitatorUrl: parseUrl(env.FACILITATOR_URL ?? 'http://localhost:3002'),
     maxTimeoutSeconds: integer(env, 'PORTICO_MAX_TIMEOUT_SECONDS', 60, 1, 3600),
+    finalityLagBlocks: integer(
+      env,
+      'PORTICO_FINALITY_LAG_BLOCKS',
+      FINALITY_LAG_BLOCKS,
+      0,
+      60
+    ),
     settlementCacheTtlMs: integer(env, 'PORTICO_SETTLEMENT_CACHE_TTL_MS', 120_000, 1_000, 86_400_000),
     rateLimitWindowMs: integer(env, 'RATE_LIMIT_WINDOW_MS', 60_000, 1_000, 3_600_000),
     rateLimitMax: integer(

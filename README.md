@@ -77,7 +77,7 @@ tests/                 near-workspaces sandbox tests
 |---|---|---|---|
 | W1 | REPO | monorepo, licenses, env surface, pins, contract foundation, quote surface, SDK headers, FT deploy | remote G1 green |
 | W2 | PRIMITIVE | `ft_on_transfer` flows, registry/streams/ledger, facilitator verify/settle, SDK client, unit vectors | remote G2 green (63 + 7 contract tests, 43 SDK tests) |
-| W3 | FLOWS | MCP + paywall, sandbox integration tests, deploy + zero-funds rehearsal | after W2 |
+| W3 | FLOWS | storage/admin follow-ups, MCP + paywall, sandbox integration tests, demo script | local implementation in progress |
 | W4 | CLOSE | zero-funds demo, measured gas/latency, README-as-spec, clean-room build | after W3 |
 
 Implemented primitives: NEP-141 `ft_transfer`/`ft_transfer_call` (no approval
@@ -145,6 +145,7 @@ boot.
 | `PORTICO_FACILITATOR_PORT` | `3002` | HTTP port |
 | `FACILITATOR_URL` | `http://localhost:3002` | public URL used in quotes |
 | `PORTICO_MAX_TIMEOUT_SECONDS` | `60` | delegate TTL / block budget |
+| `PORTICO_FINALITY_LAG_BLOCKS` | `3` | optimistic-vs-final TTL allowance |
 | `PORTICO_SETTLEMENT_CACHE_TTL_MS` | `120000` | duplicate-settlement cache TTL |
 | `RATE_LIMIT_MAX` | `100` | requests per window |
 | `PORTICO_ALLOWED_ORIGINS` | empty (reflect) | comma-separated browser origins |
