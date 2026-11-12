@@ -1,25 +1,17 @@
 /**
  * Read-only client for the portico revenue-split contract.
- *
- * Views are executed through `JsonRpcProvider.query` with a `call_function`
- * request pinned to `finality:"final"`, so a view never reports state from a
- * fork or an unexecuted optimistic block. Arguments are JSON-encoded and
- * base64-wrapped as the RPC requires; the returned byte payload is decoded
- * back from JSON.
+ * Views are executed through `JsonRpcProvider.callFunction` pinned to
+ * `finality:"final"`, so a view never reports state from a fork or an
+ * unexecuted optimistic block. The provider JSON-encodes the arguments and
+ * decodes the returned JSON payload.
  */
 
-import { JsonRpcProvider } from 'near-api-js';
+import { JsonRpcProvider, type SerializedReturnValue } from 'near-api-js';
 import { LEDGER_LIMIT_MAX } from '../constants.js';
 import { ClientConfigError, ContractViewError } from '../errors.js';
 import type { LedgerEntry, SplitView, StreamView, ToolInfo, TotalsView } from '../types.js';
 
 export const DEFAULT_NEAR_RPC_URL = 'https://rpc.testnet.near.org';
-
-/** Shape of a `call_function` query result; `result` is the raw return bytes. */
-interface CallFunctionQueryResult {
-  logs?: string[];
-  result: number[] | string;
-}
 
 export interface RevenueSplitClientOptions {
   /** Deployed split contract account id. */
@@ -52,33 +44,6 @@ function requireLedgerLimit(limit: number, method: string): number {
   return limit;
 }
 
-/**
- * Decode a `call_function` result. near-api-js returns the raw bytes as a
- * number array; accepting a base64 string as well keeps the decoder usable
- * with RPC transports that base64-encode return values.
- */
-export function decodeViewResult<T>(method: string, result: unknown): T {
-  if (typeof result === 'string') {
-    const decoded = Buffer.from(result, 'base64').toString('utf8');
-    return parseViewJson<T>(method, decoded);
-  }
-  if (Array.isArray(result) && result.every(byte => typeof byte === 'number')) {
-    return parseViewJson<T>(method, Buffer.from(result as number[]).toString('utf8'));
-  }
-  throw new ContractViewError(method, `view ${method} returned an unexpected result payload`);
-}
-
-function parseViewJson<T>(method: string, text: string): T {
-  if (text.length === 0) {
-    throw new ContractViewError(method, `view ${method} returned an empty result`);
-  }
-  try {
-    return JSON.parse(text) as T;
-  } catch (cause) {
-    throw new ContractViewError(method, `view ${method} returned invalid JSON`, { cause });
-  }
-}
-
 export class RevenueSplitClient {
   public readonly contractId: string;
   private readonly provider: JsonRpcProvider;
@@ -105,24 +70,29 @@ export class RevenueSplitClient {
     this.provider = new JsonRpcProvider({ url: rpcUrl });
   }
 
-  /** Call a view method and decode its JSON result. */
-  public async callView<T>(method: string, args: Record<string, unknown> = {}): Promise<T> {
+  /** Call a view method through the provider at finality final. */
+  public async callView<T extends SerializedReturnValue | null>(
+    method: string,
+    args: Record<string, unknown> = {}
+  ): Promise<T> {
     if (typeof method !== 'string' || method.trim().length === 0) {
       throw new ContractViewError(method, 'method must be a non-empty view name');
     }
-    let response: CallFunctionQueryResult;
+    let result: T | undefined;
     try {
-      response = await this.provider.query<CallFunctionQueryResult>({
-        request_type: 'call_function',
-        finality: 'final',
-        account_id: this.contractId,
-        method_name: method,
-        args_base64: Buffer.from(JSON.stringify(args), 'utf8').toString('base64'),
-      });
+      result = (await this.provider.callFunction<SerializedReturnValue>({
+        contractId: this.contractId,
+        method,
+        args,
+        blockQuery: { finality: 'final' },
+      })) as T | undefined;
     } catch (cause) {
       throw new ContractViewError(method, `view ${method} failed`, { cause });
     }
-    return decodeViewResult<T>(method, response.result);
+    if (result === undefined) {
+      throw new ContractViewError(method, `view ${method} returned an empty result`);
+    }
+    return result;
   }
 
   /** `calculate_split(amount: U128)` — developer/platform legs at the current fee. */

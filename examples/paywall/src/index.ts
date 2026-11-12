@@ -32,8 +32,10 @@ import {
   PAYMENT_SIGNATURE_HEADER,
   X402_SCHEME,
   X402_VERSION,
-  decodeHeaderJson,
   encodeHeaderJson,
+  isRecord,
+  messageOf,
+  parsePaymentSignature,
   parseSettlementResponse,
   type AcceptsEntry,
   type PaymentPayload,
@@ -41,7 +43,6 @@ import {
   type ResourceInfo,
   type SettlementResponse,
 } from '@portico/sdk';
-import { isRecord, messageOf } from './guards.js';
 
 /** Validated paywall configuration. */
 export interface PaywallConfig {
@@ -83,7 +84,6 @@ export interface PaywallDependencies {
 
 const ACCOUNT_ID_PATTERN = /^(?=.{2,64}$)([a-z\d]+[-_])*[a-z\d]+(\.([a-z\d]+[-_])*[a-z\d]+)*$/;
 const U128_PATTERN = /^\d+$/;
-const BASE64_PATTERN = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 
 const defaultFetch: PaywallFetch = (url, init) => globalThis.fetch(url, init);
 
@@ -207,97 +207,6 @@ function buildRequirement(config: PaywallConfig): PaymentRequired {
     mimeType: 'application/json',
   };
   return { x402Version: X402_VERSION, resource, accepts: [accepted] };
-}
-
-function isCanonicalBase64(value: string): boolean {
-  const trimmed = value.trim();
-  if (trimmed.length === 0 || !BASE64_PATTERN.test(trimmed)) {
-    return false;
-  }
-  const bytes = Buffer.from(trimmed, 'base64');
-  return bytes.length > 0 && bytes.toString('base64') === trimmed;
-}
-
-function readAccepted(value: unknown): AcceptsEntry {
-  if (!isRecord(value)) {
-    throw new Error('accepted must be an object');
-  }
-  if (value.scheme !== X402_SCHEME) {
-    throw new Error('accepted.scheme must be exact');
-  }
-  if (typeof value.network !== 'string' || value.network.length === 0) {
-    throw new Error('accepted.network is required');
-  }
-  if (
-    typeof value.amount !== 'string' ||
-    !U128_PATTERN.test(value.amount) ||
-    BigInt(value.amount) <= 0n
-  ) {
-    throw new Error('accepted.amount must be a positive integer');
-  }
-  const asset = value.asset;
-  const payTo = value.payTo;
-  if (typeof asset !== 'string' || asset.length === 0) {
-    throw new Error('accepted.asset is required');
-  }
-  if (typeof payTo !== 'string' || payTo.length === 0) {
-    throw new Error('accepted.payTo is required');
-  }
-  if (
-    typeof value.maxTimeoutSeconds !== 'number' ||
-    !Number.isInteger(value.maxTimeoutSeconds) ||
-    value.maxTimeoutSeconds < 1
-  ) {
-    throw new Error('accepted.maxTimeoutSeconds must be a positive integer');
-  }
-  const accepted: AcceptsEntry = {
-    scheme: X402_SCHEME,
-    network: value.network,
-    amount: value.amount,
-    asset,
-    payTo,
-    maxTimeoutSeconds: value.maxTimeoutSeconds,
-  };
-  if (isRecord(value.extra)) {
-    accepted.extra = value.extra;
-  }
-  return accepted;
-}
-
-/** Decode and structurally validate the payment payload before any I/O. */
-function readPaymentPayload(header: string): PaymentPayload {
-  const value = decodeHeaderJson(header, PAYMENT_SIGNATURE_HEADER);
-  if (!isRecord(value)) {
-    throw new Error('PAYMENT-SIGNATURE must contain a JSON object');
-  }
-  if (value.x402Version !== X402_VERSION) {
-    throw new Error('PAYMENT-SIGNATURE must use x402 version 2');
-  }
-  const resource = value.resource;
-  if (!isRecord(resource) || typeof resource.url !== 'string' || resource.url.length === 0) {
-    throw new Error('PAYMENT-SIGNATURE.resource.url is required');
-  }
-  const envelope = value.payload;
-  if (
-    !isRecord(envelope) ||
-    typeof envelope.signedDelegateAction !== 'string' ||
-    !isCanonicalBase64(envelope.signedDelegateAction)
-  ) {
-    throw new Error('PAYMENT-SIGNATURE.payload.signedDelegateAction must be canonical base64');
-  }
-  const resourceInfo: ResourceInfo = { url: resource.url };
-  if (typeof resource.description === 'string') {
-    resourceInfo.description = resource.description;
-  }
-  if (typeof resource.mimeType === 'string') {
-    resourceInfo.mimeType = resource.mimeType;
-  }
-  return {
-    x402Version: X402_VERSION,
-    resource: resourceInfo,
-    accepted: readAccepted(value.accepted),
-    payload: { signedDelegateAction: envelope.signedDelegateAction },
-  };
 }
 
 /**
@@ -443,7 +352,7 @@ export function createPaywallApp(
 
     let payload: PaymentPayload;
     try {
-      payload = readPaymentPayload(signature);
+      payload = parsePaymentSignature(signature);
     } catch {
       res.status(400).json({
         error: 'invalid_payment_signature',

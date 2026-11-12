@@ -13,7 +13,7 @@
 import { pathToFileURL } from 'node:url';
 import { createInterface } from 'node:readline';
 import { createToolsFromEnv, type ToolHost } from './tools.js';
-import { isRecord, messageOf } from './guards.js';
+import { isRecord, messageOf } from '@portico/sdk';
 
 export const MCP_PROTOCOL_VERSION = '2024-11-05';
 export const MCP_SERVER_NAME = 'portico-x402';

@@ -30,6 +30,7 @@ use near_sdk::{env, near, AccountId, Promise, PromiseError, PromiseOrValue};
 use crate::events::LedgerEvent;
 use crate::ext::{ext_ft, GAS_FOR_FT_RESOLVE, GAS_FOR_FT_TRANSFER, YOCTO_ONE};
 use crate::ledger::LedgerAction;
+use crate::registry::ToolInfo;
 use crate::split::{split_amount, PaymentItem, SplitView};
 use crate::Contract;
 use crate::ContractExt;
@@ -393,6 +394,54 @@ impl Contract {
         PromiseOrValue::Value(U128(0))
     }
 
+    /// Updates one tool's counters and optionally credits its developer leg.
+    ///
+    /// The platform leg is aggregated by the caller so the batch path can
+    /// credit it once. `pay_tool` passes `false`: the developer leg leaves by
+    /// FT transfer, and the payout callback restores the balance only if that
+    /// transfer fails. The batch path passes `true` because it settles every
+    /// leg into a balance.
+    fn settle_tool_leg(
+        &mut self,
+        sender: &AccountId,
+        name: &str,
+        mut tool: ToolInfo,
+        split: &SplitView,
+        credit_developer: bool,
+    ) {
+        let price = tool.price_per_call.0;
+        tool.total_calls = tool
+            .total_calls
+            .checked_add(1)
+            .unwrap_or_else(|| env::panic_str("tool call counter overflow"));
+        tool.total_revenue = U128(
+            tool.total_revenue
+                .0
+                .checked_add(price)
+                .unwrap_or_else(|| env::panic_str("tool revenue overflow")),
+        );
+        let developer = tool.developer.clone();
+        self.tools.insert(name.to_string(), tool);
+        if credit_developer {
+            self.credit_developer_balance(&developer, split.developer.0);
+        }
+        self.append_ledger_entry(
+            sender.clone(),
+            developer.clone(),
+            price,
+            LedgerAction::ToolCall,
+            Some(name.to_string()),
+            None,
+        );
+        LedgerEvent::ToolCalled {
+            payer: sender.clone(),
+            tool: name.to_string(),
+            developer,
+            amount: U128(price),
+        }
+        .emit();
+    }
+
     /// Settles one tool call for exactly its price and refunds the excess.
     fn pay_tool(
         &mut self,
@@ -420,34 +469,9 @@ impl Contract {
         ]) {
             return PromiseOrValue::Value(amount);
         }
-        tool.total_calls = tool
-            .total_calls
-            .checked_add(1)
-            .unwrap_or_else(|| env::panic_str("tool call counter overflow"));
-        tool.total_revenue = U128(
-            tool.total_revenue
-                .0
-                .checked_add(price)
-                .unwrap_or_else(|| env::panic_str("tool revenue overflow")),
-        );
-        self.tools.insert(tool_name.clone(), tool);
         self.credit_developer_balance(&platform, split.platform.0);
         self.add_settled_volume(price);
-        self.append_ledger_entry(
-            sender.clone(),
-            developer.clone(),
-            price,
-            LedgerAction::ToolCall,
-            Some(tool_name.clone()),
-            None,
-        );
-        LedgerEvent::ToolCalled {
-            payer: sender,
-            tool: tool_name,
-            developer: developer.clone(),
-            amount: U128(price),
-        }
-        .emit();
+        self.settle_tool_leg(&sender, &tool_name, tool, &split, false);
 
         let excess = amount.0 - price;
         if split.developer.0 == 0 {
@@ -504,37 +528,9 @@ impl Contract {
         if !self.balance_writes_allowed(&credits) {
             return PromiseOrValue::Value(amount);
         }
-        for (name, mut tool) in resolved {
-            let price = tool.price_per_call.0;
-            let split = split_amount(price, fee_bps);
-            tool.total_calls = tool
-                .total_calls
-                .checked_add(1)
-                .unwrap_or_else(|| env::panic_str("tool call counter overflow"));
-            tool.total_revenue = U128(
-                tool.total_revenue
-                    .0
-                    .checked_add(price)
-                    .unwrap_or_else(|| env::panic_str("tool revenue overflow")),
-            );
-            let developer = tool.developer.clone();
-            self.tools.insert(name.clone(), tool);
-            self.credit_developer_balance(&developer, split.developer.0);
-            self.append_ledger_entry(
-                sender.clone(),
-                developer.clone(),
-                price,
-                LedgerAction::ToolCall,
-                Some(name.clone()),
-                None,
-            );
-            LedgerEvent::ToolCalled {
-                payer: sender.clone(),
-                tool: name,
-                developer,
-                amount: U128(price),
-            }
-            .emit();
+        for (name, tool) in resolved {
+            let split = split_amount(tool.price_per_call.0, fee_bps);
+            self.settle_tool_leg(&sender, &name, tool, &split, true);
         }
         self.credit_developer_balance(&platform, platform_total);
         self.add_settled_volume(amount.0);

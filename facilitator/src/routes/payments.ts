@@ -12,7 +12,7 @@
 import { Router, type NextFunction, type Request, type Response } from 'express';
 import { isAccountId } from '../config.js';
 import type { SettlementCache, SettlementRecord } from '../services/cache.js';
-import { isRecord } from '../guards.js';
+import { isRecord } from '@portico/sdk';
 import type { TransactionResponse } from '../services/near.js';
 import { inspectInnerTransfer } from '../services/receipts.js';
 import type { PaymentRecordView, PaymentsListResponse, SettlementResponse } from '../types.js';

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   PaymentHeaderError,
   buildPaymentSignature,
+  parsePaymentSignature,
   parsePaymentRequired,
   readPaymentRequired,
 } from '../src/http/handler.js';
@@ -98,6 +99,25 @@ describe('PAYMENT-SIGNATURE', () => {
 
     const decoded = JSON.parse(Buffer.from(encoded!, 'base64').toString('utf8')) as PaymentPayload;
     expect(decoded).toEqual(payload);
+  });
+
+  it('round-trips a valid PAYMENT-SIGNATURE header through the parser', () => {
+    const payload: PaymentPayload = {
+      x402Version: 2,
+      resource: requirement().resource,
+      accepted: ACCEPT,
+      payload: { signedDelegateAction: Buffer.from([1, 2, 3]).toString('base64') },
+    };
+    const header = buildPaymentSignature(payload)['PAYMENT-SIGNATURE'];
+    expect(parsePaymentSignature(header!)).toEqual(payload);
+  });
+
+  it('rejects a malformed PAYMENT-SIGNATURE payload', () => {
+    expect(() =>
+      parsePaymentSignature(
+        encode({ x402Version: 2, resource: { url: 'https://x' }, accepted: ACCEPT })
+      )
+    ).toThrowError(PaymentHeaderError);
   });
 
   it('rejects a non-canonical signedDelegateAction', () => {

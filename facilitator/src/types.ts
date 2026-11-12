@@ -1,47 +1,19 @@
 /**
  * Facilitator wire types (x402 v2 + portico ledger views).
  *
- * These types are local to the facilitator: the HTTP surface is deliberately
- * SDK-free so the relayer can validate every field before it touches a
- * near-api-js object.
+ * The protocol wire shapes are shared with the SDK as type-only re-exports;
+ * the facilitator still validates every field at runtime before it reaches
+ * `near-api-js`.
  */
 
-export interface ResourceInfo {
-  url: string;
-  description?: string;
-  mimeType?: string;
-}
-
-export interface AcceptsEntry {
-  scheme: 'exact';
-  network: string;
-  amount: string;
-  asset: string;
-  payTo: string;
-  maxTimeoutSeconds: number;
-  extra?: Record<string, unknown>;
-}
-
-export interface PaymentRequired {
-  x402Version: 2;
-  error?: string;
-  resource: ResourceInfo;
-  accepts: AcceptsEntry[];
-  extensions?: Record<string, unknown>;
-}
-
-/** Base64 Borsh bytes of a NEP-366 `SignedDelegateAction`. */
-export interface SignedDelegateActionEnvelope {
-  signedDelegateAction: string;
-}
-
-/** x402 v2 payment payload carried by `PAYMENT-SIGNATURE`. */
-export interface PaymentPayload {
-  x402Version: number;
-  resource?: ResourceInfo;
-  accepted: AcceptsEntry;
-  payload: SignedDelegateActionEnvelope;
-}
+export type {
+  AcceptsEntry,
+  PaymentPayload,
+  PaymentRequired,
+  ResourceInfo,
+  SettlementResponse,
+  SignedDelegateActionEnvelope,
+} from '@portico/sdk';
 
 export interface QuoteRequest {
   service: string;
@@ -144,15 +116,6 @@ export type VerificationResponse =
       error: string;
       network: string;
     };
-
-export interface SettlementResponse {
-  success: boolean;
-  errorReason?: string;
-  payer?: string;
-  transaction?: string;
-  network: string;
-  settlement?: 'settled' | 'pending';
-}
 
 /** NEP-141 `ft_metadata` view. */
 export interface FtMetadataView {

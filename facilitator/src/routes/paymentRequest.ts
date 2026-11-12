@@ -8,13 +8,13 @@
 
 import type { Request } from 'express';
 import { PAYMENT_SIGNATURE_HEADER } from '../constants.js';
-import { isRecord } from '../guards.js';
-import { PaymentHeaderError, decodePaymentSignature } from '../services/headers.js';
+import { isRecord } from '@portico/sdk';
+import { PaymentHeaderError, decodeHeaderJson } from '../services/headers.js';
 
 export function readPaymentPayload(req: Request): unknown {
   const header = req.get(PAYMENT_SIGNATURE_HEADER);
   if (typeof header === 'string' && header.trim().length > 0) {
-    return decodePaymentSignature(header);
+    return decodeHeaderJson(header, PAYMENT_SIGNATURE_HEADER);
   }
 
   const body: unknown = req.body;

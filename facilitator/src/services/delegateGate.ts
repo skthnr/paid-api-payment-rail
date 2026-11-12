@@ -23,7 +23,7 @@ import {
   ONE_YOCTO,
   U128_MAX,
 } from '../constants.js';
-import { isRecord } from '../guards.js';
+import { isRecord } from '@portico/sdk';
 import { isAccountId, type FacilitatorConfig } from '../config.js';
 import type {
   GateErrorReason,
@@ -197,19 +197,14 @@ function parsePaymentPayload(payload: unknown): PaymentPayload {
   if (typeof payload.payload.signedDelegateAction !== 'string') {
     throw new GateReject('missing_payment_signature', 'payload.signedDelegateAction is required');
   }
+  const resource = isRecord(payload.resource) ? payload.resource : {};
   return {
     x402Version: 2,
-    resource: isRecord(payload.resource)
-      ? {
-          url: typeof payload.resource.url === 'string' ? payload.resource.url : '',
-          description:
-            typeof payload.resource.description === 'string'
-              ? payload.resource.description
-              : undefined,
-          mimeType:
-            typeof payload.resource.mimeType === 'string' ? payload.resource.mimeType : undefined,
-        }
-      : undefined,
+    resource: {
+      url: typeof resource.url === 'string' ? resource.url : '',
+      description: typeof resource.description === 'string' ? resource.description : undefined,
+      mimeType: typeof resource.mimeType === 'string' ? resource.mimeType : undefined,
+    },
     accepted: {
       scheme: 'exact',
       network: accepted.network,

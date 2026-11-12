@@ -9,6 +9,7 @@
 export * from './constants.js';
 export * from './errors.js';
 export * from './types.js';
+export * from './guards.js';
 export * from './http/handler.js';
 export * from './payments/metaTx.js';
 export * from './client.js';

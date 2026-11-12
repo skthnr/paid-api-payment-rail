@@ -16,10 +16,10 @@ import { SettlementCache } from '../services/cache.js';
 import type { DelegateGate } from '../services/delegateGate.js';
 import {
   decodeCanonicalBase64,
-  encodeSettlementResponse,
+  encodeHeaderJson,
   PaymentHeaderError,
 } from '../services/headers.js';
-import { isRecord } from '../guards.js';
+import { isRecord } from '@portico/sdk';
 import {
   isNonceError,
   isTimeoutError,
@@ -65,7 +65,7 @@ function payloadHashOf(payload: unknown): string | null {
 }
 
 function sendSettlement(res: Response, status: number, body: SettlementResponse): void {
-  res.setHeader(PAYMENT_RESPONSE_HEADER, encodeSettlementResponse(body));
+  res.setHeader(PAYMENT_RESPONSE_HEADER, encodeHeaderJson(body));
   res.status(status).json(body);
 }
 

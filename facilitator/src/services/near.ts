@@ -27,7 +27,7 @@ import {
   type TxExecutionStatus,
 } from 'near-api-js';
 import type { FacilitatorConfig } from '../config.js';
-import { isRecord } from '../guards.js';
+import { isRecord } from '@portico/sdk';
 import type { FtMetadataView, StorageBalanceView, ToolInfoView } from '../types.js';
 
 export type TransactionResponse = FinalExecutionOutcome;
@@ -120,10 +120,6 @@ export class NearClient implements NearReader {
     );
     const signer = MultiKeySigner.fromSecretKeys(config.relayerSecretKeys as KeyPairString[]);
     this.relayer = new Account(config.relayerId, this.provider, signer);
-  }
-
-  public get relayerId(): string {
-    return this.config.relayerId;
   }
 
   public async blockHeight(final: boolean): Promise<BlockHeight> {

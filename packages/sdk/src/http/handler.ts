@@ -18,6 +18,7 @@ import type {
   AcceptsEntry,
   PaymentPayload,
   PaymentRequired,
+  ResourceInfo,
   SettlementResponse,
 } from '../types.js';
 
@@ -237,7 +238,7 @@ export function readPaymentRequired(response: HeaderResponse): PaymentRequired |
   return null;
 }
 
-function assertSignedDelegateEnvelope(value: unknown): void {
+function assertSignedDelegateEnvelope(value: unknown): string {
   if (!isRecord(value)) {
     throw new PaymentHeaderError(
       'PAYMENT-SIGNATURE payload must be an object',
@@ -256,6 +257,49 @@ function assertSignedDelegateEnvelope(value: unknown): void {
       PAYMENT_SIGNATURE_HEADER
     );
   }
+  return encoded;
+}
+
+/** Decode and validate one `PAYMENT-SIGNATURE` header into the v2 payload. */
+export function parsePaymentSignature(header: string): PaymentPayload {
+  const value = decodeHeaderJson<unknown>(header, PAYMENT_SIGNATURE_HEADER);
+  if (!isRecord(value)) {
+    throw new PaymentHeaderError(
+      'PAYMENT-SIGNATURE must contain a JSON object',
+      PAYMENT_SIGNATURE_HEADER
+    );
+  }
+  if (value.x402Version !== X402_VERSION) {
+    throw new PaymentHeaderError(
+      'PAYMENT-SIGNATURE must use x402 version 2',
+      PAYMENT_SIGNATURE_HEADER
+    );
+  }
+  if (
+    !isRecord(value.resource) ||
+    typeof value.resource.url !== 'string' ||
+    value.resource.url.length === 0
+  ) {
+    throw new PaymentHeaderError(
+      'PAYMENT-SIGNATURE.resource.url is required',
+      PAYMENT_SIGNATURE_HEADER
+    );
+  }
+  const signedDelegateAction = assertSignedDelegateEnvelope(value.payload);
+  const accepted = validateAcceptsEntry(value.accepted, 0, PAYMENT_SIGNATURE_HEADER);
+  const resource: ResourceInfo = { url: value.resource.url };
+  if (typeof value.resource.description === 'string') {
+    resource.description = value.resource.description;
+  }
+  if (typeof value.resource.mimeType === 'string') {
+    resource.mimeType = value.resource.mimeType;
+  }
+  return {
+    x402Version: X402_VERSION,
+    resource,
+    accepted,
+    payload: { signedDelegateAction },
+  };
 }
 
 export function buildPaymentSignature(payload: PaymentPayload): Record<string, string> {

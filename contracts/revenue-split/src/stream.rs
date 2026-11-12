@@ -26,8 +26,8 @@
 //! The stream therefore carries `accrued_base`, the amount earned before the
 //! current rate epoch, and the accrual formula adds `accrued_base` to the
 //! epoch's `rate * elapsed`. The field is zero for a freshly opened stream,
-//! which makes [`accrued`] and [`accrued_with_base`] identical until the first
-//! rate change. `withdrawn` stays a lifetime counter.
+//! which makes the base formula equal to plain accrual until the first rate
+//! change. `withdrawn` stays a lifetime counter.
 //!
 //! # Lifecycle
 //!
@@ -222,55 +222,10 @@ pub fn elapsed_blocks(
         .saturating_sub(paused_blocks)
 }
 
-/// Total amount accrued at `now_block`, capped at `deposit`.
-///
-/// `withdrawn` is already-settled accrual and therefore a lower bound for the
-/// reported total, and an upper bound for the reported claimable amount.
-pub fn accrued(
-    deposit: u128,
-    withdrawn: u128,
-    rate_per_block: u128,
-    start_block: u64,
-    cliff_end_block: u64,
-    paused_blocks: u64,
-    now_block: u64,
-) -> u128 {
-    let earned = rate_per_block.saturating_mul(u128::from(elapsed_blocks(
-        start_block,
-        cliff_end_block,
-        paused_blocks,
-        now_block,
-    )));
-    earned.min(deposit).max(withdrawn.min(deposit))
-}
-
-/// Amount accrued but not yet withdrawn at `now_block`.
-pub fn claimable(
-    deposit: u128,
-    withdrawn: u128,
-    rate_per_block: u128,
-    start_block: u64,
-    cliff_end_block: u64,
-    paused_blocks: u64,
-    now_block: u64,
-) -> u128 {
-    accrued(
-        deposit,
-        withdrawn,
-        rate_per_block,
-        start_block,
-        cliff_end_block,
-        paused_blocks,
-        now_block,
-    )
-    .saturating_sub(withdrawn)
-}
-
 /// Total amount accrued at `now_block` for a stream with a rate epoch.
 ///
 /// `accrued_base` is the amount carried over from a previous rate epoch; a
-/// stream that never changed its rate has `accrued_base = 0` and this is
-/// identical to [`accrued`].
+/// stream that never changed its rate has `accrued_base = 0`.
 pub fn accrued_with_base(
     deposit: u128,
     withdrawn: u128,
@@ -778,48 +733,51 @@ mod tests {
     #[test]
     fn no_accrual_before_the_cliff() {
         // start 100, cliff duration 50 => cliff_end 150.
-        assert_eq!(accrued(1_000, 0, 10, 100, 150, 0, 120), 0);
-        assert_eq!(claimable(1_000, 0, 10, 100, 150, 0, 120), 0);
+        assert_eq!(accrued_with_base(1_000, 0, 0, 10, 100, 150, 0, 120), 0);
+        assert_eq!(claimable_with_base(1_000, 0, 0, 10, 100, 150, 0, 120), 0);
     }
 
     #[test]
     fn no_accrual_at_the_cliff_boundary() {
-        assert_eq!(accrued(1_000, 0, 10, 100, 150, 0, 150), 0);
+        assert_eq!(accrued_with_base(1_000, 0, 0, 10, 100, 150, 0, 150), 0);
     }
 
     #[test]
     fn accrual_starts_one_block_after_the_cliff() {
-        assert_eq!(accrued(1_000, 0, 10, 100, 150, 0, 151), 10);
+        assert_eq!(accrued_with_base(1_000, 0, 0, 10, 100, 150, 0, 151), 10);
     }
 
     #[test]
     fn accrual_uses_the_later_of_start_and_cliff_end() {
         // A stream already past its cliff at start starts at `start_block`.
-        assert_eq!(accrued(1_000, 0, 10, 100, 90, 0, 110), 100);
+        assert_eq!(accrued_with_base(1_000, 0, 0, 10, 100, 90, 0, 110), 100);
     }
 
     #[test]
     fn paused_blocks_are_subtracted_from_elapsed() {
         // 100 elapsed blocks minus 40 paused blocks, at 10 per block.
-        assert_eq!(accrued(1_000, 0, 10, 100, 150, 40, 250), 600);
+        assert_eq!(accrued_with_base(1_000, 0, 0, 10, 100, 150, 40, 250), 600);
     }
 
     #[test]
     fn paused_blocks_never_underflow_elapsed() {
-        assert_eq!(accrued(1_000, 0, 10, 100, 150, 10_000, 200), 0);
+        assert_eq!(accrued_with_base(1_000, 0, 0, 10, 100, 150, 10_000, 200), 0);
     }
 
     #[test]
     fn accrual_is_capped_by_the_deposit() {
-        assert_eq!(accrued(500, 0, 10, 100, 150, 0, 1_000), 500);
-        assert_eq!(claimable(500, 0, 10, 100, 150, 0, 1_000), 500);
-        assert_eq!(escrow_remaining(500, accrued(500, 0, 10, 100, 150, 0, 1_000)), 0);
+        assert_eq!(accrued_with_base(500, 0, 0, 10, 100, 150, 0, 1_000), 500);
+        assert_eq!(claimable_with_base(500, 0, 0, 10, 100, 150, 0, 1_000), 500);
+        assert_eq!(
+            escrow_remaining(500, accrued_with_base(500, 0, 0, 10, 100, 150, 0, 1_000)),
+            0
+        );
     }
 
     #[test]
     fn zero_rate_never_accrues() {
-        assert_eq!(accrued(1_000, 0, 0, 100, 150, 0, 1_000), 0);
-        assert_eq!(claimable(1_000, 0, 0, 100, 150, 0, 1_000), 0);
+        assert_eq!(accrued_with_base(1_000, 0, 0, 0, 100, 150, 0, 1_000), 0);
+        assert_eq!(claimable_with_base(1_000, 0, 0, 0, 100, 150, 0, 1_000), 0);
     }
 
     #[test]
@@ -827,8 +785,8 @@ mod tests {
         let deposit = 1_000;
         let withdrawn = 500;
         // 80 blocks elapsed at 10 per block => 800 earned.
-        let total = accrued(deposit, withdrawn, 10, 100, 150, 0, 230);
-        let pending = claimable(deposit, withdrawn, 10, 100, 150, 0, 230);
+        let total = accrued_with_base(deposit, withdrawn, 0, 10, 100, 150, 0, 230);
+        let pending = claimable_with_base(deposit, withdrawn, 0, 10, 100, 150, 0, 230);
         let escrow = escrow_remaining(deposit, total);
         assert_eq!(total, 800);
         assert_eq!(pending, 300);
@@ -841,9 +799,12 @@ mod tests {
     fn fully_accrued_stream_has_no_escrow_left() {
         let deposit = 1_000;
         let withdrawn = 250;
-        let total = accrued(deposit, withdrawn, 10, 100, 150, 0, 10_000);
+        let total = accrued_with_base(deposit, withdrawn, 0, 10, 100, 150, 0, 10_000);
         assert_eq!(total, deposit);
-        assert_eq!(claimable(deposit, withdrawn, 10, 100, 150, 0, 10_000), 750);
+        assert_eq!(
+            claimable_with_base(deposit, withdrawn, 0, 10, 100, 150, 0, 10_000),
+            750
+        );
         assert_eq!(escrow_remaining(deposit, total), 0);
     }
 

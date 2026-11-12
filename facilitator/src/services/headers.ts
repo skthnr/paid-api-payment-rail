@@ -6,7 +6,7 @@
  * strings can never decode to the same signed delegate.
  */
 
-import { PAYMENT_SIGNATURE_HEADER } from '../constants.js';
+import { decodeHeaderJson as decodeSdkHeaderJson, encodeHeaderJson, messageOf } from '@portico/sdk';
 
 const BASE64_PATTERN = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
 
@@ -21,17 +21,7 @@ export class PaymentHeaderError extends Error {
   }
 }
 
-export function encodeHeaderJson(value: unknown): string {
-  return Buffer.from(JSON.stringify(value), 'utf8').toString('base64');
-}
-
-export function decodePaymentSignature(header: string): unknown {
-  return decodeHeaderJson(header, PAYMENT_SIGNATURE_HEADER);
-}
-
-export function encodeSettlementResponse(value: unknown): string {
-  return encodeHeaderJson(value);
-}
+export { encodeHeaderJson };
 export function decodeCanonicalBase64(value: string, label: string): Uint8Array {
   const trimmed = value.trim();
   if (trimmed.length === 0 || !BASE64_PATTERN.test(trimmed)) {
@@ -45,15 +35,14 @@ export function decodeCanonicalBase64(value: string, label: string): Uint8Array 
 }
 
 export function decodeHeaderJson(header: string, headerName: string): unknown {
-  const bytes = decodeCanonicalBase64(header, headerName);
   let parsed: unknown;
   try {
-    parsed = JSON.parse(Buffer.from(bytes).toString('utf8'));
-  } catch {
-    throw new PaymentHeaderError(`${headerName} must contain JSON`);
+    parsed = decodeSdkHeaderJson<unknown>(header, headerName);
+  } catch (error) {
+    throw new PaymentHeaderError(messageOf(error), headerName);
   }
   if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
-    throw new PaymentHeaderError(`${headerName} must contain a JSON object`);
+    throw new PaymentHeaderError(`${headerName} must contain a JSON object`, headerName);
   }
   return parsed;
 }

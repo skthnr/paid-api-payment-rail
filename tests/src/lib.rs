@@ -20,7 +20,7 @@
 
 use std::path::{Path, PathBuf};
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result};
 use near_sdk::json_types::U128;
 use near_sdk::{Gas, NearToken};
 use near_workspaces::network::Sandbox;
@@ -90,11 +90,6 @@ pub async fn sandbox() -> Result<Worker<Sandbox>> {
         .context("start the NEAR sandbox")
 }
 
-/// Convert a whole-token amount to raw 18-decimal units.
-pub fn raw_amount(tokens: u128) -> u128 {
-    tokens * 10u128.pow(u32::from(FT_DECIMALS))
-}
-
 /// Deterministic fuzz vectors: 20 amounts inside `1..=1000e18` plus `1e24`.
 pub fn fuzz_amounts() -> Vec<u128> {
     let mut amounts = Vec::with_capacity(21);
@@ -143,14 +138,6 @@ pub fn pay_tool_msg(tool: &str) -> Value {
     })
 }
 
-/// `pay_tools` message: settle a batch of registered tool calls atomically.
-pub fn pay_tools_msg(tools: &[&str]) -> Value {
-    json!({
-        "action": "pay_tools",
-        "tools": tools,
-    })
-}
-
 /// `open_stream` message: open a per-block stream from the transferred deposit.
 pub fn open_stream_msg(recipient: &AccountId, rate_per_block: u128, cliff_blocks: u64) -> Value {
     json!({
@@ -158,14 +145,6 @@ pub fn open_stream_msg(recipient: &AccountId, rate_per_block: u128, cliff_blocks
         "recipient": recipient,
         "rate_per_block": U128::from(rate_per_block),
         "cliff_blocks": cliff_blocks,
-    })
-}
-
-/// `fund_stream` message: add the transferred amount to an existing stream.
-pub fn fund_stream_msg(stream_id: u64) -> Value {
-    json!({
-        "action": "fund_stream",
-        "stream_id": stream_id,
     })
 }
 
@@ -668,26 +647,6 @@ impl Harness {
         Ok(value.0)
     }
 
-    /// `get_streams_by_recipient` view.
-    pub async fn streams_by_recipient(
-        &self,
-        recipient: &AccountId,
-        after_id: Option<u64>,
-        limit: u32,
-    ) -> Result<Vec<u64>> {
-        self.split
-            .view("get_streams_by_recipient")
-            .args_json(json!({
-                "account": recipient,
-                "after_id": after_id,
-                "limit": limit,
-            }))
-            .await
-            .context("view revenue_split.get_streams_by_recipient")?
-            .json()
-            .context("decode revenue_split.get_streams_by_recipient")
-    }
-
     /// Latest block height.
     pub async fn block_height(&self) -> Result<u64> {
         Ok(self
@@ -721,43 +680,4 @@ impl Harness {
         Ok(reached)
     }
 
-    /// Advances to `cliff_end_block + extra_blocks` for `stream_id`.
-    pub async fn fast_forward_to_stream_phase(
-        &self,
-        stream_id: u64,
-        extra_blocks: u64,
-    ) -> Result<u64> {
-        let stream = self
-            .stream(stream_id)
-            .await?
-            .ok_or_else(|| anyhow!("stream {stream_id} is not stored"))?;
-        let target = stream
-            .cliff_end_block
-            .checked_add(extra_blocks)
-            .ok_or_else(|| anyhow!("stream {stream_id} phase target overflow"))?;
-        self.fast_forward_to(target).await
-    }
-
-    /// Execution height of the first receipt that ran on `executor` and
-    /// logged `event`, used to pin block-dependent accrual assertions.
-    pub async fn event_block_height(
-        &self,
-        result: &ExecutionFinalResult,
-        executor: &AccountId,
-        event: &str,
-    ) -> Result<Option<u64>> {
-        for outcome in result.outcomes() {
-            let emitted = outcome.logs.iter().any(|line| line.contains(event));
-            if &outcome.executor_id == executor && emitted {
-                let block = self
-                    .worker
-                    .view_block()
-                    .block_hash(outcome.block_hash)
-                    .await
-                    .context("view a block by hash")?;
-                return Ok(Some(block.height()));
-            }
-        }
-        Ok(None)
-    }
 }

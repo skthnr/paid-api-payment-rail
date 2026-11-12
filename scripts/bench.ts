@@ -84,6 +84,8 @@ import {
   type TotalsView,
 } from '../packages/sdk/src/index.js';
 import { isRecord } from '../packages/sdk/src/guards.js';
+import { accountId, httpUrl, integer, required, secretKey } from './lib/config.js';
+import { tokenBalance } from './lib/near.js';
 import { inspectInnerTransfer } from '../facilitator/src/services/receipts.js';
 
 /** Step 15 defaults fixed by p0-business.md. */
@@ -101,9 +103,6 @@ const DEFAULT_MAX_TIMEOUT_SECONDS = 60;
 const DEFAULT_LOOP_TIMEOUT_MS = 120_000;
 const HTTP_TIMEOUT_MS = 30_000;
 const TX_POLL_MS = 500;
-/** Account id and key formats accepted from the environment. */
-const ACCOUNT_ID_PATTERN = /^(?=.{2,64}$)([a-z\d]+[-_])*[a-z\d]+(\.([a-z\d]+[-_])*[a-z\d]+)*$/;
-const SECRET_KEY_PATTERN = /^(ed25519|secp256k1):[1-9A-HJ-NP-Za-km-z]+$/;
 const U128_PATTERN = /^\d+$/;
 
 interface BenchConfig {
@@ -224,56 +223,6 @@ function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function required(env: NodeJS.ProcessEnv, name: string): string {
-  const value = env[name]?.trim();
-  if (value === undefined || value.length === 0) {
-    throw new Error(`${name} is required`);
-  }
-  return value;
-}
-
-function accountId(value: string, name: string): string {
-  if (!ACCOUNT_ID_PATTERN.test(value)) {
-    throw new Error(`${name} is not a valid NEAR account id: ${value}`);
-  }
-  return value;
-}
-
-function secretKey(value: string, name: string): string {
-  if (!SECRET_KEY_PATTERN.test(value)) {
-    throw new Error(`${name} must be an ed25519 or secp256k1 secret key`);
-  }
-  return value;
-}
-
-function integer(
-  env: NodeJS.ProcessEnv,
-  name: string,
-  fallback: number,
-  min: number,
-  max: number
-): number {
-  const raw = env[name]?.trim();
-  const value = raw === undefined || raw.length === 0 ? fallback : Number(raw);
-  if (!Number.isInteger(value) || value < min || value > max) {
-    throw new Error(`${name} must be an integer in [${min}, ${max}]`);
-  }
-  return value;
-}
-
-function httpUrl(value: string, name: string): string {
-  let parsed: URL;
-  try {
-    parsed = new URL(value);
-  } catch {
-    throw new Error(`${name} is not a valid URL: ${value}`);
-  }
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    throw new Error(`${name} must use http or https`);
-  }
-  return parsed.toString().replace(/\/+$/, '');
-}
-
 /** Default transcript location: the workspace root, not the repo subdirectory. */
 function defaultTranscriptPath(): string {
   if (process.platform === 'win32') {
@@ -390,33 +339,6 @@ async function postJson(
     }
   }
   return { status: response.status, ok: response.ok, body, text };
-}
-
-async function readU128View(
-  provider: JsonRpcProvider,
-  contractId: string,
-  method: string,
-  args: Record<string, unknown>,
-  label: string
-): Promise<bigint> {
-  const result = await provider.callFunction<string>({
-    contractId,
-    method,
-    args,
-    blockQuery: { finality: 'final' },
-  });
-  if (result === undefined) {
-    throw new Error(`${label} returned no value`);
-  }
-  let text: string;
-  if (typeof result === 'string' && U128_PATTERN.test(result)) {
-    text = result;
-  } else if (isRecord(result) && typeof result['0'] === 'string') {
-    text = result['0'];
-  } else {
-    throw new Error(`${label} returned an unexpected u128 payload`);
-  }
-  return BigInt(text);
 }
 
 /** Emit the transcript on every run; the caller decides the exit code. */
@@ -896,13 +818,7 @@ async function preflight(config: BenchConfig, note: (line: string) => void): Pro
       `excess ${BigInt(accepted.amount) - BigInt(tool.price_per_call)} refunded per loop)`
   );
 
-  const buyerFtBefore = await readU128View(
-    provider,
-    config.tokenContract,
-    'ft_balance_of',
-    { account_id: config.buyerAccount },
-    `ft_balance_of(${config.buyerAccount})`
-  );
+  const buyerFtBefore = await tokenBalance(provider, config.tokenContract, config.buyerAccount);
   const requiredFt = BigInt(accepted.amount) * BigInt(config.loops);
   if (buyerFtBefore < requiredFt) {
     throw new Error(

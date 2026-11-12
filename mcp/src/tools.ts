@@ -16,13 +16,13 @@
 import {
   PorticoClient,
   RevenueSplitClient,
+  isRecord,
   normalizeAmount,
   type AcceptsEntry,
   type FetchLike,
   type PaymentRequired,
 } from '@portico/sdk';
 import { Account, JsonRpcProvider, type KeyPairString } from 'near-api-js';
-import { isRecord } from './guards.js';
 
 /** Environment-backed configuration for the tool host. */
 export interface PorticoToolsConfig {
