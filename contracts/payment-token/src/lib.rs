@@ -139,3 +139,6 @@ impl FungibleTokenMetadataProvider for Contract {
         self.metadata.clone()
     }
 }
+
+#[cfg(test)]
+mod tests;

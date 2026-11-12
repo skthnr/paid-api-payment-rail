@@ -1,11 +1,21 @@
-//! Fee split math for the revenue-split contract.
+//! Fee split math plus the withdrawable developer balance.
 //!
 //! All amounts are raw FT units. The platform cut is
 //! `floor(amount * fee_bps / 10_000)` and the developer receives the
 //! remainder, so the two legs always add back up to `amount`.
+//!
+//! Payment paths that are not the single-payment developer leg credit their
+//! proceeds to `developer_balances` instead of scheduling another FT transfer
+//! (see `ft_receiver`); this module owns that balance and its one-yocto
+//! withdrawal.
 
 use near_sdk::json_types::U128;
-use near_sdk::{near, AccountId};
+use near_sdk::{env, near, require, AccountId, Promise};
+
+use crate::events::LedgerEvent;
+use crate::ledger::LedgerAction;
+use crate::Contract;
+use crate::ContractExt;
 
 /// Largest platform fee the contract accepts, in basis points (50%).
 pub const MAX_FEE_BPS: u16 = 5_000;
@@ -80,6 +90,81 @@ pub fn split_amount(amount: u128, fee_bps: u16) -> SplitView {
     SplitView {
         developer: U128(developer),
         platform: U128(platform),
+    }
+}
+
+#[near]
+impl Contract {
+    /// Withdraws the caller's whole accrued balance to the caller.
+    ///
+    /// Requires exactly one yoctoNEAR. The balance is removed before the FT
+    /// transfer is scheduled, so a reentrant call cannot withdraw it twice;
+    /// [`Contract::on_payout_done`] restores it when the transfer fails.
+    #[payable]
+    pub fn withdraw_developer_balance(&mut self) -> Promise {
+        near_sdk::assert_one_yocto();
+        let developer = env::predecessor_account_id();
+        let amount = self
+            .developer_balances
+            .get(&developer)
+            .copied()
+            .unwrap_or(0);
+        require!(amount > 0, "no developer balance to withdraw");
+        self.developer_balances.remove(&developer);
+        self.total_developer_balance = self.total_developer_balance.saturating_sub(amount);
+        self.append_ledger_entry(
+            developer.clone(),
+            developer.clone(),
+            amount,
+            LedgerAction::DeveloperPayout,
+            None,
+            None,
+        );
+        LedgerEvent::DeveloperWithdrawal {
+            developer: developer.clone(),
+            amount: U128(amount),
+        }
+        .emit();
+        self.direct_payout_promise(developer, amount, 0, None)
+    }
+}
+
+impl Contract {
+    /// Credits `amount` to `developer`'s withdrawable balance.
+    ///
+    /// Used by the payment paths that settle into a balance rather than an FT
+    /// transfer. Panics on overflow, which is unreachable for FT-denominated
+    /// state.
+    pub(crate) fn credit_developer_balance(&mut self, developer: &AccountId, amount: u128) {
+        if amount == 0 {
+            return;
+        }
+        let balance = self
+            .developer_balances
+            .get(developer)
+            .copied()
+            .unwrap_or(0)
+            .checked_add(amount)
+            .unwrap_or_else(|| env::panic_str("developer balance overflow"));
+        self.developer_balances.insert(developer.clone(), balance);
+        self.total_developer_balance = self
+            .total_developer_balance
+            .checked_add(amount)
+            .unwrap_or_else(|| env::panic_str("total developer balance overflow"));
+    }
+
+    /// Restores a developer balance from a private callback.
+    ///
+    /// Saturating and infallible: callbacks must never panic.
+    pub(crate) fn restore_developer_balance(&mut self, developer: &AccountId, amount: u128) {
+        let balance = self
+            .developer_balances
+            .get(developer)
+            .copied()
+            .unwrap_or(0)
+            .saturating_add(amount);
+        self.developer_balances.insert(developer.clone(), balance);
+        self.total_developer_balance = self.total_developer_balance.saturating_add(amount);
     }
 }
 

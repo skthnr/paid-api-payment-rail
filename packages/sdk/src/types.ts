@@ -51,13 +51,13 @@ export interface SettlementResponse {
 }
 
 export type LedgerAction =
-  | 'Payment'
-  | 'ToolCall'
-  | 'DeveloperPayout'
-  | 'StreamClaim'
-  | 'StreamFund'
-  | 'StreamWithdraw'
-  | 'StreamClose';
+  | 'payment'
+  | 'tool_call'
+  | 'developer_payout'
+  | 'stream_claim'
+  | 'stream_fund'
+  | 'stream_withdraw'
+  | 'stream_close';
 
 export interface LedgerEntry {
   id: number;
@@ -92,7 +92,7 @@ export interface TotalsView {
   total_developer_balance: string;
 }
 
-export type StreamStatus = 'Open' | 'Paused' | 'Closed';
+export type StreamStatus = 'open' | 'paused' | 'closed';
 
 export interface StreamView {
   accrued: string;

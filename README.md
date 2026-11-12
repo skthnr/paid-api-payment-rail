@@ -75,10 +75,14 @@ tests/                 near-workspaces sandbox tests
 
 | Wave | Gate | Scope | State |
 |---|---|---|---|
-| W1 | REPO | monorepo, licenses, env surface, pins, contract foundation, quote surface, SDK headers, FT deploy | scaffold committed locally |
-| W2 | PRIMITIVE | contract payment entry points, registry/stream flows, SDK client, unit vectors | next |
-| W3 | FLOWS | facilitator verify/settle, MCP + paywall, sandbox integration tests | after W2 |
+| W1 | REPO | monorepo, licenses, env surface, pins, contract foundation, quote surface, SDK headers, FT deploy | remote G1 green |
+| W2 | PRIMITIVE | `ft_on_transfer` flows, registry/streams/ledger, facilitator verify/settle, SDK client, unit vectors | remote G2 green (63 + 7 contract tests, 43 SDK tests) |
+| W3 | FLOWS | MCP + paywall, sandbox integration tests, deploy + zero-funds rehearsal | after W2 |
 | W4 | CLOSE | zero-funds demo, measured gas/latency, README-as-spec, clean-room build | after W3 |
+
+Implemented primitives: NEP-141 `ft_transfer`/`ft_transfer_call` (no approval
+step), NEP-145 storage, NEP-366 `SignedDelegateAction` relay, and the x402 v2
+`exact` scheme with a 100 Tgas delegated budget and a 1-yocto relayer deposit.
 
 The repository is developed locally and built/tested on a Linux remote; no build
 or test command in this repository is required to run on the Windows host.
@@ -143,7 +147,7 @@ boot.
 | `PORTICO_MAX_TIMEOUT_SECONDS` | `60` | delegate TTL / block budget |
 | `PORTICO_SETTLEMENT_CACHE_TTL_MS` | `120000` | duplicate-settlement cache TTL |
 | `RATE_LIMIT_MAX` | `100` | requests per window |
-| `CORS_ORIGINS` | empty (reflect) | comma-separated browser origins |
+| `PORTICO_ALLOWED_ORIGINS` | empty (reflect) | comma-separated browser origins |
 
 ## Protocol notes
 

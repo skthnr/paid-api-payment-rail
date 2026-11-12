@@ -1,16 +1,17 @@
 /**
  * Facilitator HTTP server.
  *
- * W1 surface: health, supported payment kinds, quote/pricing, and the CORS
- * contract for the PAYMENT-* headers. The chain-facing verify/settle routes are
- * added by the flows wave; they reuse the settlement cache created here.
+ * x402 v2 surface: quote/pricing, read-only /verify, /settle with a
+ * `PAYMENT-RESPONSE`, ledger-backed /payments views, /supported with required
+ * signers, and /health. The chain client is constructed once and its FT
+ * decimals are asserted at boot; a mismatch stops the process.
  */
 
 import { pathToFileURL } from 'node:url';
 import express, { type Express, type NextFunction, type Request, type Response } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import { loadConfig, ConfigError, type FacilitatorConfig } from './config.js';
+import { ConfigError, loadConfig, type FacilitatorConfig } from './config.js';
 import {
   ALLOWED_PAYMENT_HEADERS,
   EXPOSED_PAYMENT_HEADERS,
@@ -19,20 +20,33 @@ import {
 } from './constants.js';
 import { errorLogger, logger, requestLogger } from './middleware/logger.js';
 import { createRateLimiter } from './middleware/rateLimit.js';
+import { createPaymentsRouter } from './routes/payments.js';
 import { createQuoteRouter } from './routes/quote.js';
+import { createSettleRouter } from './routes/settle.js';
+import { createVerifyRouter } from './routes/verify.js';
 import { SettlementCache } from './services/cache.js';
+import { DelegateGate } from './services/delegateGate.js';
+import { NearClient, describeError } from './services/near.js';
 import type { ErrorResponse, HealthResponse, SupportedResponse } from './types.js';
 
 const VERSION = '0.1.0';
 
+export interface AppDependencies {
+  near?: NearClient;
+}
+
 export interface PorticoApp {
   app: Express;
   cache: SettlementCache;
+  near: NearClient;
+  gate: DelegateGate;
 }
 
-export function createApp(config: FacilitatorConfig): PorticoApp {
+export function createApp(config: FacilitatorConfig, dependencies: AppDependencies = {}): PorticoApp {
   const app = express();
   const cache = new SettlementCache(config.settlementCacheTtlMs);
+  const near = dependencies.near ?? new NearClient(config);
+  const gate = new DelegateGate(near, config);
 
   app.disable('x-powered-by');
   app.use(
@@ -98,6 +112,21 @@ export function createApp(config: FacilitatorConfig): PorticoApp {
       feeBps: config.feeBps,
     })
   );
+  app.use('/verify', createVerifyRouter({ gate, network: config.network }));
+  app.use(
+    '/settle',
+    createSettleRouter({ gate, chain: near, cache, config })
+  );
+  app.use(
+    '/payments',
+    createPaymentsRouter({
+      chain: near,
+      cache,
+      network: config.network,
+      relayerId: config.relayerId,
+      tokenContract: config.tokenContract,
+    })
+  );
 
   app.use((_req: Request, res: Response) => {
     const body: ErrorResponse = { error: 'Not found', code: 'NOT_FOUND' };
@@ -113,7 +142,7 @@ export function createApp(config: FacilitatorConfig): PorticoApp {
     logger.error('Unhandled request error', { error: err.message });
   });
 
-  return { app, cache };
+  return { app, cache, near, gate };
 }
 
 export async function start(): Promise<void> {
@@ -129,7 +158,20 @@ export async function start(): Promise<void> {
     throw error;
   }
 
-  const { app } = createApp(config);
+  const near = new NearClient(config);
+  try {
+    await near.assertTokenDecimals();
+  } catch (error) {
+    logger.error('FT metadata check failed; refusing to start', {
+      error: describeError(error),
+      tokenContract: config.tokenContract,
+      expectedDecimals: config.expectedDecimals,
+    });
+    process.exitCode = 1;
+    return;
+  }
+
+  const { app } = createApp(config, { near });
   const server = app.listen(config.port, config.host, () => {
     logger.info('portico facilitator listening', {
       host: config.host,

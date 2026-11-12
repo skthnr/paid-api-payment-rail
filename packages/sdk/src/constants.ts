@@ -21,11 +21,13 @@ export const ALLOWED_PAYMENT_HEADERS = ['Content-Type', PAYMENT_SIGNATURE_HEADER
 export const FT_DECIMALS = 18;
 /** Split contract fee bounds. */
 export const MAX_FEE_BPS = 5000;
-export const BPS_DENOMINATOR = 10_000n;
+export const BPS_DENOM = 10_000n;
 /** NEP-141 transfers require a 1-yocto attached deposit. */
 export const ONE_YOCTO = 1n;
 /** Delegated gas budget for the split `ft_transfer_call` path (whole cap). */
 export const DELEGATED_GAS_TGAS = 100;
+/** Delegated gas for the official single `ft_transfer` path (no receiver callback). */
+export const EXACT_TRANSFER_TGAS = 30;
 /** Per-leg gas: FT transfer + resolver callback. */
 export const FT_TRANSFER_TGAS = 10;
 export const FT_RESOLVE_TGAS = 5;

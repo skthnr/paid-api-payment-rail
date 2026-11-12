@@ -16,7 +16,7 @@ pub const FT_DECIMALS: u8 = 18;
 /// Default platform fee used by the deploy examples.
 pub const FEE_BPS: u16 = 2000;
 /// Basis-point denominator used by the split math.
-pub const BPS_DENOMINATOR: u128 = 10_000;
+pub const BPS_DENOM: u128 = 10_000;
 /// One NEP-141 transfer deposit.
 pub const ONE_YOCTO: u128 = 1;
 /// Ledger page clamp enforced by the contract view.

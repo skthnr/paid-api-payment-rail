@@ -20,9 +20,9 @@ pub enum LedgerEvent {
         developer: AccountId,
         /// Gross amount transferred, in raw FT units.
         amount: U128,
-        /// Developer leg credited to the developer balance.
+        /// Developer leg, paid out or credited to the developer balance.
         developer_amount: U128,
-        /// Platform leg credited to the platform wallet.
+        /// Platform leg credited to the platform wallet's balance.
         platform_amount: U128,
         /// Optional payer memo.
         #[serde(skip_serializing_if = "Option::is_none")]
@@ -37,7 +37,7 @@ pub enum LedgerEvent {
         tool: String,
         /// Developer that owns the tool.
         developer: AccountId,
-        /// Gross amount transferred, in raw FT units.
+        /// Settled price of the call in raw FT units.
         amount: U128,
     },
     /// A tool was registered.

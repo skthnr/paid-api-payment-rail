@@ -24,4 +24,15 @@ export const RAW_PER_PRICE_UNIT = 10n ** BigInt(TOKEN_DECIMALS - PRICE_DECIMALS)
 
 export const MAX_TIMEOUT_SECONDS = 3600;
 export const MAX_QUOTE_QUANTITY = 1000;
+
+/** NEP-141 transfers attach exactly 1 yoctoNEAR (relayer prepaid). */
+export const ONE_YOCTO = 1n;
+export const U128_MAX = (1n << 128n) - 1n;
+/** NEP-366 nonce bound: `nonce < block_height * 1_000_000`. */
+export const MICRO_BLOCKS_PER_BLOCK = 1_000_000n;
+/** Delegated gas budgets: 30 Tgas official ft_transfer, 100 Tgas split call. */
+export const FT_TRANSFER_GAS = 30_000_000_000_000n;
+export const FT_TRANSFER_CALL_GAS = 100_000_000_000_000n;
+/** Live testnet finality lag observed against near-api-js' optimistic TTL base. */
+export const FINALITY_LAG_BLOCKS = 3n;
 export const MAX_SERVICE_NAME_LENGTH = 64;

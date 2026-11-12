@@ -1,11 +1,15 @@
 /**
  * @portico/sdk — x402 v2 NEAR exact-scheme payment client.
  *
- * W1 surface: wire constants, types and strict PAYMENT-* header handling.
- * The meta-transaction client (`payments/metaTx.ts`), client (`client.ts`) and
- * contract views (`contracts/revenueSplit.ts`) land in the primitive wave.
+ * Public surface: wire constants and types, strict PAYMENT-* header handling,
+ * the NEP-366 delegate builders, the buyer client (`pay`/`quote`/`supported`)
+ * and the revenue-split contract views.
  */
 
 export * from './constants.js';
+export * from './errors.js';
 export * from './types.js';
 export * from './http/handler.js';
+export * from './payments/metaTx.js';
+export * from './client.js';
+export * from './contracts/revenueSplit.js';

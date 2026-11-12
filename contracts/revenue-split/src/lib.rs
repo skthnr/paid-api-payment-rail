@@ -1,12 +1,16 @@
 //! Portico revenue-split contract.
 //!
-//! W1 scaffold: complete state, split math, views, tool registry and admin
-//! surface. W2 adds the NEP-141 `ft_on_transfer` entry point, developer
-//! payouts and the stream lifecycle methods on top of these primitives.
+//! Merged splitter, tool registry, per-block streams and public ledger. The
+//! NEP-141 `ft_on_transfer` entry point lives in [`ft_receiver`], the stream
+//! lifecycle in [`stream`], fee math and the developer balance in [`split`],
+//! and the tool registry in [`registry`]. This module owns state, views, the
+//! admin surface and the sub-account payout rail.
 
 use near_sdk::json_types::U128;
 use near_sdk::store::LookupMap;
-use near_sdk::{env, near, require, AccountId, NearToken, PanicOnDefault, Promise};
+use near_sdk::{
+    env, near, require, AccountId, NearToken, PanicOnDefault, Promise, PublicKey,
+};
 
 pub mod events;
 pub mod ext;
@@ -113,6 +117,15 @@ impl Contract {
         self.tools.get(&name).cloned()
     }
 
+    /// Returns the complete registry record for a tool.
+    ///
+    /// The single-FT port stores the token implicitly, so this is the same
+    /// record as [`Contract::get_tool_info`]; the alias preserves the origin
+    /// `get_full_tool_info` ABI.
+    pub fn get_full_tool_info(&self, name: String) -> Option<ToolInfo> {
+        self.tools.get(&name).cloned()
+    }
+
     /// Returns the names of every tool owned by `developer`.
     pub fn get_developer_tools(&self, developer: AccountId) -> Vec<String> {
         self.developer_tools
@@ -132,19 +145,15 @@ impl Contract {
     }
 
     /// Returns a stream's accrual snapshot at the current block height.
+    ///
+    /// The snapshot counts an in-progress pause as paused time.
     pub fn get_stream_view(&self, stream_id: u64) -> StreamView {
         let stream = self
             .streams
             .get(&stream_id)
             .cloned()
             .unwrap_or_else(|| env::panic_str("stream not found"));
-        let now_block = env::block_height();
-        StreamView {
-            accrued: U128(stream.accrued_at(now_block)),
-            claimable: U128(stream.claimable_at(now_block)),
-            escrow_remaining: U128(stream.escrow_remaining_at(now_block)),
-            status: stream.status,
-        }
+        stream.view_at(env::block_height())
     }
 
     /// Sets the platform fee; owner only, `0..=MAX_FEE_BPS`.
@@ -175,6 +184,20 @@ impl Contract {
         .emit();
     }
 
+    /// Replaces the payment FT; owner only.
+    ///
+    /// The FT account is also the `ft_on_transfer` predecessor allowlist, so
+    /// this rotates which contract may fund payments. No event variant exists
+    /// for this admin change; the platform events cover fee and wallet.
+    pub fn set_ft_account(&mut self, ft_account_id: AccountId) {
+        self.assert_owner();
+        require!(
+            ft_account_id != self.ft_account_id,
+            "FT account is unchanged"
+        );
+        self.ft_account_id = ft_account_id;
+    }
+
     /// Enables or disables value-in operations; owner only.
     ///
     /// The pause gates registration and value-in paths only, never payouts or
@@ -199,7 +222,10 @@ impl Contract {
     /// Registers a tool and charges its storage growth to the caller.
     ///
     /// The attached deposit must cover `env::storage_byte_cost() * bytes
-    /// added`; any excess is refunded to the predecessor.
+    /// added` plus [`ledger::LEDGER_RESERVE_BYTES`] of storage, the reserve
+    /// that funds the unfunded payment-path writes (ledger entries, first
+    /// developer-balance touches, tool counters) a registered tool can
+    /// trigger. Any excess is refunded to the predecessor.
     #[payable]
     pub fn register_tool(&mut self, name: String, developer: AccountId, price: U128) {
         self.assert_not_paused();
@@ -226,12 +252,9 @@ impl Contract {
         // `store::LookupMap` buffers writes, so flush before pricing the growth.
         self.tools.flush();
         self.developer_tools.flush();
+        let storage_growth = env::storage_usage().saturating_sub(storage_usage_start);
         let required_deposit =
-            env::storage_byte_cost()
-                .as_yoctonear()
-                .saturating_mul(u128::from(
-                    env::storage_usage().saturating_sub(storage_usage_start),
-                ));
+            registry::registration_deposit(storage_growth, env::storage_byte_cost().as_yoctonear());
         let attached_deposit = env::attached_deposit().as_yoctonear();
         require!(
             attached_deposit >= required_deposit,
@@ -250,6 +273,27 @@ impl Contract {
             price_per_call: price,
         }
         .emit();
+    }
+
+    /// Creates `{name}.{this contract}` as a developer account.
+    ///
+    /// The attached deposit funds the new account's storage stake and the
+    /// added full-access key; the runtime rejects a deposit below the
+    /// protocol minimum. The rail exists for developers that have no account
+    /// yet, so validation is limited to a single valid account-id segment.
+    #[payable]
+    pub fn create_developer_account(&mut self, name: String, public_key: PublicKey) -> Promise {
+        let account_id = sub_account_id(&env::current_account_id(), &name)
+            .unwrap_or_else(|error| env::panic_str(error));
+        let deposit = env::attached_deposit();
+        require!(
+            deposit.as_yoctonear() > 0,
+            "attached deposit must fund the new account"
+        );
+        Promise::new(account_id)
+            .create_account()
+            .transfer(deposit)
+            .add_full_access_key(public_key)
     }
 
     /// Updates a tool's price; the tool's developer only.
@@ -335,3 +379,29 @@ impl Contract {
         self.tools.insert(name, tool);
     }
 }
+
+/// Validates a developer sub-account name: one non-empty segment, at most 64
+/// bytes, no dot (the parent account supplies the domain).
+fn validate_sub_account_name(name: &str) -> Result<(), &'static str> {
+    if name.is_empty() {
+        return Err("developer account name must not be empty");
+    }
+    if name.contains('.') {
+        return Err("developer account name must be a single account-id segment");
+    }
+    if name.len() > 64 {
+        return Err("developer account name exceeds 64 bytes");
+    }
+    Ok(())
+}
+
+/// Builds and validates `{name}.{parent}`.
+fn sub_account_id(parent: &AccountId, name: &str) -> Result<AccountId, &'static str> {
+    validate_sub_account_name(name)?;
+    format!("{name}.{parent}")
+        .parse()
+        .map_err(|_| "developer account name does not form a valid account id")
+}
+
+#[cfg(test)]
+mod tests;

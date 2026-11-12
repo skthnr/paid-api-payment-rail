@@ -4,6 +4,8 @@ use near_sdk::json_types::U128;
 use near_sdk::store::LookupMap;
 use near_sdk::{near, AccountId};
 
+use crate::ledger::LEDGER_RESERVE_BYTES;
+
 /// Maximum accepted tool-name length, in bytes.
 pub const MAX_TOOL_NAME_BYTES: usize = 64;
 
@@ -42,6 +44,25 @@ pub fn validate_price(price: u128) -> Result<(), &'static str> {
         return Err("price must be greater than zero");
     }
     Ok(())
+}
+
+/// Deposit a `register_tool` call must attach.
+///
+/// It covers the bytes the registration itself adds plus
+/// [`LEDGER_RESERVE_BYTES`], the fixed reserve that funds the unfunded
+/// payment-path writes a registered tool can trigger.
+///
+/// # Panics
+///
+/// Panics on `u128` overflow, which is unreachable for protocol storage
+/// costs and byte counts.
+pub fn registration_deposit(storage_growth_bytes: u64, byte_cost: u128) -> u128 {
+    let total_bytes = u128::from(storage_growth_bytes)
+        .checked_add(u128::from(LEDGER_RESERVE_BYTES))
+        .expect("registration deposit overflow");
+    total_bytes
+        .checked_mul(byte_cost)
+        .expect("registration deposit overflow")
 }
 
 /// Adds `name` to `developer`'s tool list, ignoring duplicates.

@@ -29,6 +29,8 @@ export interface FacilitatorConfig {
   settlementCacheTtlMs: number;
   rateLimitWindowMs: number;
   rateLimitMax: number;
+  rpcRetries: number;
+  rpcRetryWaitMs: number;
   corsOrigins: string[];
 }
 
@@ -43,8 +45,12 @@ const ACCOUNT_ID_PATTERN =
   /^(?=.{2,64}$)([a-z\d]+[-_])*[a-z\d]+(\.([a-z\d]+[-_])*[a-z\d]+)*$/;
 const SECRET_KEY_PATTERN = /^(ed25519|secp256k1):[1-9A-HJ-NP-Za-km-z]+$/;
 
+export function isAccountId(value: string): boolean {
+  return ACCOUNT_ID_PATTERN.test(value);
+}
+
 export function assertAccountId(value: string, name: string): string {
-  if (!ACCOUNT_ID_PATTERN.test(value)) {
+  if (!isAccountId(value)) {
     throw new ConfigError(`${name} is not a valid NEAR account id`);
   }
   return value;
@@ -124,7 +130,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): FacilitatorCon
     );
   }
 
-  const corsOrigins = (env.CORS_ORIGINS ?? '')
+  const corsOrigins = (env.PORTICO_ALLOWED_ORIGINS ?? '')
     .split(',')
     .map(origin => origin.trim())
     .filter(origin => origin.length > 0);
@@ -154,6 +160,8 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): FacilitatorCon
       1,
       100_000
     ),
+    rpcRetries: integer(env, 'PORTICO_RPC_RETRIES', 4, 1, 20),
+    rpcRetryWaitMs: integer(env, 'PORTICO_RPC_RETRY_WAIT_MS', 250, 10, 10_000),
     corsOrigins,
   };
 }

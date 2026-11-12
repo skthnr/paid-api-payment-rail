@@ -14,6 +14,15 @@ use crate::Contract;
 /// write, keeping the on-chain footprint bounded.
 pub const MAX_LEDGER_ENTRIES: u64 = 100_000;
 
+/// Bytes of storage a tool registration pre-funds for later payment writes.
+///
+/// `ft_on_transfer` receives no attached deposit from the FT, so the ledger
+/// entry, the first `developer_balances` write for each payee and the tool
+/// counter updates of a sale are unfunded. `register_tool` therefore requires
+/// this fixed reserve on top of its own storage growth, which keeps the
+/// capped ledger and the first balance writes from aborting a sale.
+pub const LEDGER_RESERVE_BYTES: u64 = 8_192;
+
 /// Largest page `get_ledger` returns, regardless of the requested limit.
 pub const MAX_LEDGER_PAGE: u32 = 100;
 
@@ -111,6 +120,23 @@ impl Contract {
         self.ledger.insert(id, entry);
         self.next_ledger_id = id + 1;
         true
+    }
+}
+
+impl Contract {
+    /// Adds `amount` to the monotonic settled-volume counter.
+    pub(crate) fn add_settled_volume(&mut self, amount: u128) {
+        self.settled_volume = self
+            .settled_volume
+            .checked_add(amount)
+            .unwrap_or_else(|| env::panic_str("settled volume overflow"));
+    }
+
+    /// Rolls back a settled amount whose payout leg failed.
+    ///
+    /// Saturating and infallible: used from private callbacks.
+    pub(crate) fn sub_settled_volume(&mut self, amount: u128) {
+        self.settled_volume = self.settled_volume.saturating_sub(amount);
     }
 }
 
