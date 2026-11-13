@@ -7,7 +7,7 @@
 use anyhow::Result;
 use portico_tests::{
     batch_msg, expect_failure, expect_handled_failure, fuzz_amounts, must_succeed,
-    pay_developers_msg, pay_tool_msg, Harness, BPS_DENOM, E18, FEE_BPS,
+    pay_developers_msg, pay_tool_msg, pay_tools_msg, Harness, BPS_DENOM, E18, FEE_BPS,
 };
 use serde_json::json;
 
@@ -557,6 +557,47 @@ async fn split_volume_and_balance_views_track_large_units() -> Result<()> {
     assert_eq!(harness.ft_balance(harness.developer.id()).await?, split.developer.0);
     assert_eq!(harness.ft_balance(harness.split.id()).await?, split.platform.0);
     assert_eq!(harness.developer_balance(harness.platform.id()).await?, split.platform.0);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn split_pay_tools_batch_credits_each_leg_once() -> Result<()> {
+    let harness = Harness::setup().await?;
+    let first_price = 1_000_000u128;
+    let second_price = 2_000_000u128;
+    for (name, price) in [("web-search", first_price), ("image-gen", second_price)] {
+        must_succeed(
+            &harness
+                .register_tool(&harness.developer, name, harness.developer.id(), price)
+                .await?,
+            "register batch tool",
+        );
+    }
+
+    let buyer_start = harness.ft_balance(harness.buyer.id()).await?;
+    let total = first_price + second_price;
+    let outcome = harness
+        .ft_transfer_call(
+            &harness.buyer,
+            total,
+            pay_tools_msg(&["web-search", "image-gen"]),
+        )
+        .await?;
+    must_succeed(&outcome, "pay_tools batch");
+
+    assert_eq!(harness.ft_balance(harness.buyer.id()).await?, buyer_start - total);
+    assert_eq!(harness.ft_balance(harness.split.id()).await?, 0);
+    assert_eq!(harness.developer_balance(harness.developer.id()).await?, 2_400_000);
+    assert_eq!(harness.developer_balance(harness.platform.id()).await?, 600_000);
+    assert_eq!(harness.totals().await?.settled_volume.0, total);
+
+    let ledger = harness.ledger(None, 100).await?;
+    assert_eq!(ledger.len(), 2);
+    assert!(ledger.iter().all(|entry| entry.action == "tool_call"));
+    assert!(ledger.iter().all(|entry| entry.payee == harness.developer.id().to_string()));
+    assert_eq!(harness.tool_info("web-search").await?.unwrap().total_calls, 1);
+    assert_eq!(harness.tool_info("image-gen").await?.unwrap().total_calls, 1);
 
     Ok(())
 }

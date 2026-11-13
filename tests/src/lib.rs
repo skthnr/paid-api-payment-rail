@@ -138,6 +138,14 @@ pub fn pay_tool_msg(tool: &str) -> Value {
     })
 }
 
+/// `pay_tools` message: settle a batch of registered tool calls.
+pub fn pay_tools_msg(tools: &[&str]) -> Value {
+    json!({
+        "action": "pay_tools",
+        "tools": tools,
+    })
+}
+
 /// `open_stream` message: open a per-block stream from the transferred deposit.
 pub fn open_stream_msg(recipient: &AccountId, rate_per_block: u128, cliff_blocks: u64) -> Value {
     json!({

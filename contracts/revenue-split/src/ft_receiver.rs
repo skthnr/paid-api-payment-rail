@@ -496,43 +496,62 @@ impl Contract {
         if names.is_empty() || names.len() > MAX_BATCH_ITEMS {
             return PromiseOrValue::Value(amount);
         }
+        let fee_bps = self.platform_fee_bps;
         let mut total = 0u128;
+        let mut platform_total = 0u128;
         let mut resolved = Vec::with_capacity(names.len());
-        for name in &names {
-            let Some(tool) = self.tools.get(name).cloned() else {
+        for name in names {
+            let Some(tool) = self.tools.get(&name).cloned() else {
                 return PromiseOrValue::Value(amount);
             };
             if !tool.active {
                 return PromiseOrValue::Value(amount);
             }
+            let split = split_amount(tool.price_per_call.0, fee_bps);
             let Some(next) = total.checked_add(tool.price_per_call.0) else {
                 return PromiseOrValue::Value(amount);
             };
             total = next;
-            resolved.push((name.clone(), tool));
+            platform_total = platform_total.saturating_add(split.platform.0);
+            resolved.push((name, tool, split));
         }
         if total != amount.0 {
             return PromiseOrValue::Value(amount);
         }
 
-        let fee_bps = self.platform_fee_bps;
         let platform = self.platform_wallet.clone();
-        let mut platform_total = 0u128;
-        let mut credits: Vec<(&AccountId, u128)> = Vec::with_capacity(resolved.len());
-        for (_, tool) in &resolved {
-            let split = split_amount(tool.price_per_call.0, fee_bps);
-            platform_total = platform_total.saturating_add(split.platform.0);
-            credits.push((&tool.developer, split.developer.0));
+        let mut credits: Vec<(&AccountId, u128)> = Vec::with_capacity(resolved.len() + 1);
+        for (_, tool, split) in &resolved {
+            if split.developer.0 > 0 {
+                credits.push((&tool.developer, split.developer.0));
+            }
         }
-        credits.push((&platform, platform_total));
+        if platform_total > 0 {
+            credits.push((&platform, platform_total));
+        }
         if !self.balance_writes_allowed(&credits) {
             return PromiseOrValue::Value(amount);
         }
-        for (name, tool) in resolved {
-            let split = split_amount(tool.price_per_call.0, fee_bps);
-            self.settle_tool_leg(&sender, &name, tool, &split, true);
+
+        // Keep one balance write per distinct payee. `settle_tool_leg` keeps
+        // its `credit_developer` guard disabled here; the aggregate below is
+        // the single developer credit, and the platform is credited once.
+        let mut aggregated: Vec<(AccountId, u128)> = Vec::with_capacity(credits.len());
+        for (account, credit) in credits {
+            if let Some((_, sum)) = aggregated.iter_mut().find(|(known, _)| known == account) {
+                *sum = sum
+                    .checked_add(credit)
+                    .unwrap_or_else(|| env::panic_str("developer balance overflow"));
+            } else {
+                aggregated.push((account.clone(), credit));
+            }
         }
-        self.credit_developer_balance(&platform, platform_total);
+        for (name, tool, split) in resolved {
+            self.settle_tool_leg(&sender, &name, tool, &split, false);
+        }
+        for (account, credit) in aggregated {
+            self.credit_developer_balance(&account, credit);
+        }
         self.add_settled_volume(amount.0);
         PromiseOrValue::Value(U128(0))
     }
