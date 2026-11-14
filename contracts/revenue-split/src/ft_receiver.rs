@@ -449,7 +449,7 @@ impl Contract {
         amount: U128,
         tool_name: String,
     ) -> PromiseOrValue<U128> {
-        let Some(mut tool) = self.tools.get(&tool_name).cloned() else {
+        let Some(tool) = self.tools.get(&tool_name).cloned() else {
             return PromiseOrValue::Value(amount);
         };
         if !tool.active {
