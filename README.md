@@ -273,4 +273,4 @@ Run the near-workspaces suite on Linux x86-64/ARM64 or macOS ARM64 (WSL2 on Wind
 
 ## License and hackathon
 
-Apache-2.0. See `LICENSE` and `NOTICE`. Track: `business`. Development ends 2026-11-14T23:59:00Z (UTC).
+Apache-2.0. See `LICENSE` and `NOTICE`. Tracks: `business`, `realworld`. Development ends 2026-11-14T23:59:00Z (UTC).
