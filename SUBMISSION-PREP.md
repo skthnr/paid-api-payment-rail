@@ -1,6 +1,6 @@
 # SUBMISSION-PREP — portico (LOCAL DRAFT, NOT SUBMITTED)
 
-Track: `business` (spec `p0-business.md`). Deadline 2026-11-14T23:59:00Z. No push, no remote, no tags, no X post, no submit. Local commit only.
+Tracks: `business`, `realworld`. Deadline 2026-11-14T23:59:00Z. No push, no remote, no tags, no X post, no submit. Local commit only.
 
 ## Judge quickstart (do X → see Y), MEASURED on Celesto Cloud Box B
 
