@@ -1,7 +1,6 @@
 # SUBMISSION-PREP — portico (LOCAL DRAFT, NOT SUBMITTED)
 
-Track: `business` (spec `p0-business.md`). Deadline 2026-11-14T23:59:00Z.
-No push, no remote, no tags, no X post, no submit. Local commit only.
+Track: `business` (spec `p0-business.md`). Deadline 2026-11-14T23:59:00Z. No push, no remote, no tags, no X post, no submit. Local commit only.
 
 ## Judge quickstart (do X → see Y), MEASURED on Celesto Cloud Box B
 
@@ -20,13 +19,14 @@ pnpm dedupe --check            -> EXIT 0 (DUP_FINAL=14, down from 48)
 git diff --check               -> EXIT 0
 ```
 
-Chain gas COUNTEREXAMPLED: real near-sandbox `ft_transfer_call`
-`gas_burnt_total=11388564732645` = 11.3886 TGas, 10 receipts, SuccessValue.
+Build artifacts from `cargo near build non-reproducible-wasm`: `portico_payment_token.wasm` 151,392 B with 15/15 exports. `portico_revenue_split.wasm` 295,003 B with 38/38 exports.
+
+Chain gas COUNTEREXAMPLED: real near-sandbox `ft_transfer_call` `gas_burnt_total=11388564732645` = 11.3886 TGas, 10 receipts, SuccessValue.
 
 ## Recordable demo outline (human records, human posts)
 
-1. Buyer signs a NEP-366 SignedDelegateAction for a paid API call.
-2. Facilitator verifies, settle the split, show both legs credited once.
+1. The buyer signs a NEP-366 SignedDelegateAction for a paid API call.
+2. The facilitator verifies and settles the split. Show both legs credited once.
 3. Show a replayed signature rejected. One moment, visible result.
    Q-012 video required when judges cannot open the demo. Tags @NEARProtocol,
    #NEARHackathon. Main writes no post.
@@ -47,29 +47,20 @@ Chain gas COUNTEREXAMPLED: real near-sandbox `ft_transfer_call`
 | idea        | 20-2000 chars                                       | EMPTY |
 | consent     | `true` only after verbatim notice + human yes       | EMPTY |
 
-Never add `website`. Print full JSON, wait for explicit yes. 201 saved;
-400 fix `fields` + same requestId; 403 stop; 409 stop; 413 shorten; 503 retry
-same requestId.
+Never add `website`. Print full JSON and wait for explicit yes. 201 means saved. 400 means fix `fields` and reuse the same requestId. 403 stop. 409 stop. 413 shorten. 503 retry the same requestId.
 
 ## Rules checklist
 
-- Q-003: 6 pre-existing tags, none of the required pair; no README diff link.
-  **Not satisfied**; local tags deliberately not created.
+- Q-003: 6 pre-existing tags, none of the required pair, and no README diff link. **Not satisfied**. Local tags deliberately not created.
 - Q-012 video required when judges cannot open the demo.
-- Q-014 `LICENSE` + `NOTICE` present. Q-017 README "Quickstart — zero-funds
-  sandbox" at line 93 and "Testnet quickstart" at line 118.
+- Q-014 `LICENSE` and `NOTICE` present. Q-017 README "Quickstart — zero-funds sandbox" at line 122 and "Testnet quickstart" at line 145.
 - Q-015 second project on same email must be named in README. Unresolved.
-- Q-002/Q-005 origin disclosure: README "Origin and license disclosure" line 18.
-- W5 COUNTEREXAMPLED: TS 7.0.2 + `@typescript/typescript6` 6.0.2 (`TS5102` +
-  `TS2345` x4 fixed), ESLint 10.15.0 flat config, Express 5.3.0, Vitest 5.1.0,
-  `DUP_FINAL=14` (48 -> 14), final-tree 23/23 `FINAL_23_RC=0` on Celesto Box B.
+- Q-002/Q-005 origin disclosure: README "Origin and license disclosure" at line 79.
+- W5 COUNTEREXAMPLED: TS 7.0.2 + `@typescript/typescript6` 6.0.2, with `TS5102` and `TS2345` x4 fixed. ESLint 10.15.0 flat config, Express 5.3.0, Vitest 5.1.0. `DUP_FINAL=14` (48 -> 14). Final tree 23/23 `FINAL_23_RC=0` on Celesto Box B.
 
 ## Blockers (do not block submission)
 
-Box B Rust `tests/Cargo.toml` full near-workspaces re-run skipped due to shared
-Box B 100% disk constraint (23/23 scenarios verified via native
-`scripts/lib/sandbox-integration.mjs`). Firecrawl/Exa/Jina/Celesto REST all live.
-BoxLite §6 `Dz3VBlqjGIvr` MEASURED FAILURE (`EXIT_CODE=-1`, cleanup DONE).
+The Box B Rust `tests/Cargo.toml` near-workspaces re-run was skipped. The shared Box B disk was 100% full. The 23/23 scenarios passed through `scripts/lib/sandbox-integration.mjs`. Firecrawl, Exa, Jina, and Celesto REST are all live. BoxLite §6 `Dz3VBlqjGIvr` is a MEASURED FAILURE (`EXIT_CODE=-1`, cleanup DONE).
 
 ## Attestation
 

@@ -1,17 +1,10 @@
 portico
 Copyright 2026 portico contributors
 
-This product includes software derived from x402-stablecoin
-(https://github.com/Sperax/x402-stablecoin), Copyright x402-stablecoin
-contributors, licensed under the Apache License, Version 2.0.
+This product includes software derived from x402-stablecoin (https://github.com/Sperax/x402-stablecoin). Copyright x402-stablecoin contributors. Licensed under the Apache License, Version 2.0.
 
-The origin repository's root LICENSE is the Apache License, Version 2.0 and
-governs the repository as a whole. Some origin files carry MIT SPDX headers and
-the origin package metadata says MIT; that conflict is resolved in favour of the
-root LICENSE. Files copied from the origin retain their original SPDX headers.
+The origin repository's root LICENSE is the Apache License, Version 2.0 and governs the whole repository. Some origin files carry MIT SPDX headers and MIT package metadata. The root LICENSE resolves that conflict. Files copied from the origin keep their original SPDX headers.
 
-The Solidity contracts of the origin are not copied. The NEAR contracts in this
-repository are an independent Rust reimplementation of the documented behaviour.
+The Solidity contracts of the origin are not copied. The NEAR contracts in this repository are an independent Rust reimplementation of the documented behaviour.
 
-near-sdk-contract-tools is dual-licensed GPL-3.0 OR Apache-2.0; this project
-elects Apache-2.0 for the combined work.
+near-sdk-contract-tools is dual-licensed GPL-3.0 OR Apache-2.0. This project elects Apache-2.0 for the combined work.
