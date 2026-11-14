@@ -44,7 +44,11 @@
  * failure; there is no synthetic success path.
  */
 
-try { process.loadEnvFile(); } catch { /* .env optional */ }
+try {
+  process.loadEnvFile();
+} catch {
+  /* .env optional */
+}
 
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import {

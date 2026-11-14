@@ -16,7 +16,11 @@
  * preflight without payment.
  */
 
-try { process.loadEnvFile(); } catch { /* .env optional */ }
+try {
+  process.loadEnvFile();
+} catch {
+  /* .env optional */
+}
 import { pathToFileURL } from 'node:url';
 import express, {
   type Express,

@@ -21,6 +21,11 @@
 *.jsx text eol=lf
 *.tsx text eol=lf
 
+*.mjs text eol=lf
+
+# Rust & TOML
+*.rs text eol=lf
+*.toml text eol=lf
 # Python
 *.py text eol=lf
 

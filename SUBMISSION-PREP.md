@@ -30,24 +30,24 @@ Chain gas COUNTEREXAMPLED: real near-sandbox `ft_transfer_call`
 1. Buyer signs a NEP-366 SignedDelegateAction for a paid API call.
 2. Facilitator verifies, settle the split, show both legs credited once.
 3. Show a replayed signature rejected. One moment, visible result.
-Q-012 video required when judges cannot open the demo. Tags @NEARProtocol,
-#NEARHackathon. Main writes no post.
+   Q-012 video required when judges cannot open the demo. Tags @NEARProtocol,
+   #NEARHackathon. Main writes no post.
 
 ## Payload fields — ALL EMPTY, human supplies every value
 
-| Field | Rule | Value |
-|---|---|---|
-| requestId | UUID, generated ONCE, reused on 400/503 | EMPTY |
-| projectName | 2-80 chars | EMPTY |
-| leadName | 2-80 chars | EMPTY |
-| email | valid, <=160, max 2 submissions per address (Q-015) | EMPTY |
-| size | `1` / `2 - 4` / `4 - 6` / `6 - 8` / `8+` | EMPTY |
-| tracks | >=1 track id, each once; `business` fits | EMPTY |
-| nearAddress | 2-64 lowercase mainnet account the team creates | EMPTY |
-| projectUrl | http(s), <=300, public repo, unique | EMPTY |
-| demoUrl | http(s), <=300, published X post | EMPTY |
-| idea | 20-2000 chars | EMPTY |
-| consent | `true` only after verbatim notice + human yes | EMPTY |
+| Field       | Rule                                                | Value |
+| ----------- | --------------------------------------------------- | ----- |
+| requestId   | UUID, generated ONCE, reused on 400/503             | EMPTY |
+| projectName | 2-80 chars                                          | EMPTY |
+| leadName    | 2-80 chars                                          | EMPTY |
+| email       | valid, <=160, max 2 submissions per address (Q-015) | EMPTY |
+| size        | `1` / `2 - 4` / `4 - 6` / `6 - 8` / `8+`            | EMPTY |
+| tracks      | >=1 track id, each once; `business` fits            | EMPTY |
+| nearAddress | 2-64 lowercase mainnet account the team creates     | EMPTY |
+| projectUrl  | http(s), <=300, public repo, unique                 | EMPTY |
+| demoUrl     | http(s), <=300, published X post                    | EMPTY |
+| idea        | 20-2000 chars                                       | EMPTY |
+| consent     | `true` only after verbatim notice + human yes       | EMPTY |
 
 Never add `website`. Print full JSON, wait for explicit yes. 201 saved;
 400 fix `fields` + same requestId; 403 stop; 409 stop; 413 shorten; 503 retry

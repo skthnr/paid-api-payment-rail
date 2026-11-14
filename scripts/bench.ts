@@ -48,17 +48,21 @@
  *   PORTICO_MAX_TIMEOUT_SECONDS  delegate TTL cap, default 60
  *   PORTICO_BENCH_LOOPS      default 20
  *   PORTICO_BENCH_LOOP_TIMEOUT_MS  per-loop FINAL deadline, default 120000
- *   PORTICO_BENCH_TRANSCRIPT transcript path, default W4-NUMBERS.txt under
- *                            D:/near/portico on Windows and the repo parent on
- *                            other platforms
+ *   PORTICO_BENCH_TRANSCRIPT transcript path, default W4-NUMBERS.txt in the
+ *                            parent directory of this repository
  *
  * The transcript is written on every run, including configuration errors,
  * unavailable-stack blockers and band failures.
  */
 
-try { process.loadEnvFile(); } catch { /* .env optional */ }
+try {
+  process.loadEnvFile();
+} catch {
+  /* .env optional */
+}
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { setTimeout as delay } from 'node:timers/promises';
 import {
   Account,
@@ -225,10 +229,7 @@ function messageOf(error: unknown): string {
 
 /** Default transcript location: the workspace root, not the repo subdirectory. */
 function defaultTranscriptPath(): string {
-  if (process.platform === 'win32') {
-    return 'D:/near/portico/W4-NUMBERS.txt';
-  }
-  return resolve(process.cwd(), '..', 'W4-NUMBERS.txt');
+  return resolve(fileURLToPath(new URL('../..', import.meta.url)), 'W4-NUMBERS.txt');
 }
 
 function loadConfig(env: NodeJS.ProcessEnv, args: readonly string[]): BenchConfig {

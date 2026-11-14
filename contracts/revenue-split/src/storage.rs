@@ -110,7 +110,7 @@ impl Contract {
         let mut new_keys = 0u64;
         let mut seen: Vec<&AccountId> = Vec::with_capacity(credits.len());
         for &(account, amount) in credits {
-            if amount == 0 || seen.iter().any(|existing| *existing == account) {
+            if amount == 0 || seen.contains(&account) {
                 continue;
             }
             seen.push(account);

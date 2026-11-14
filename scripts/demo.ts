@@ -33,7 +33,11 @@
  *   PORTICO_SANDBOX_RPC_URL
  */
 
-try { process.loadEnvFile(); } catch { /* .env optional */ }
+try {
+  process.loadEnvFile();
+} catch {
+  /* .env optional */
+}
 import { setTimeout as delay } from 'node:timers/promises';
 import {
   PorticoClient,
