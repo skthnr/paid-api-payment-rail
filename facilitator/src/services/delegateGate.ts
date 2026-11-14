@@ -401,7 +401,7 @@ export class DelegateGate {
       );
     }
     const delegateHash = createHash('sha256').update(encodeDelegateAction(delegateAction)).digest();
-    let signatureValid = false;
+    let signatureValid: boolean;
     try {
       signatureValid = delegateAction.publicKey.verify(
         new Uint8Array(delegateHash),

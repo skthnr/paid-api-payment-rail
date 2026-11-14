@@ -4,3 +4,8 @@ packages:
   - mcp
   - examples/*
 strictDepBuilds: false
+autoDedupe: true
+dedupePeers: true
+minimumReleaseAgeExclude:
+  - '@eslint/config-array@0.23.6'
+  - eslint@10.15.0

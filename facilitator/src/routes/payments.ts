@@ -18,6 +18,7 @@ import { inspectInnerTransfer } from '../services/receipts.js';
 import type { PaymentRecordView, PaymentsListResponse, SettlementResponse } from '../types.js';
 import type { SettlementChain } from './settle.js';
 
+type TxHashRequest = Request<{ txHash: string }>;
 const TX_HASH_PATTERN = /^[1-9A-HJ-NP-Za-km-z]{43,44}$/;
 
 export interface PaymentsRouterOptions {
@@ -148,7 +149,7 @@ export function createPaymentsRouter(options: PaymentsRouterOptions): Router {
     res.json(body);
   });
 
-  router.get('/:txHash', async (req: Request, res: Response, next: NextFunction) => {
+  router.get('/:txHash', async (req: TxHashRequest, res: Response, next: NextFunction) => {
     const txHash = req.params.txHash ?? '';
     if (!TX_HASH_PATTERN.test(txHash)) {
       res.status(400).json({ error: 'Invalid transaction hash', code: 'INVALID_TX_HASH' });
