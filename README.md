@@ -270,7 +270,7 @@ Run the near-workspaces suite on Linux x86-64/ARM64 or macOS ARM64 (WSL2 on Wind
 ## Baseline and disclosure
 
 - Baseline: tag `pre-hackathon` marks the imported tree at `9f6b73f`. The upstream project is `x402-stablecoin`.
-- Submission: tag `hackathon-submission` marks the submitted state; `git rev-parse --short hackathon-submission` prints it.
+- Submission: tag `hackathon-submission` marks the submitted state. `git rev-parse --short hackathon-submission` prints it.
 - Diff: `git diff pre-hackathon..hackathon-submission`. After publishing, https://github.com/<owner>/<repo>/compare/pre-hackathon...hackathon-submission.
 - Libraries, templates and AI-generated code are listed in `ATTRIBUTION.md` and `NOTICE`.
 
