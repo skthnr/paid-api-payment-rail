@@ -1,7 +1,5 @@
 # portico
 
-portico implements the x402 v2 `exact` payment scheme on NEAR for paid APIs. A buyer signs a NEP-366 `SignedDelegateAction` with one NEP-141 `ft_transfer_call` into a revenue-split contract. A relayer submits the delegate and pays gas plus 1 yoctoNEAR. The contract splits each sale between the developer and the platform, then appends it to a public ledger. Subscription revenue streams accrue per block for permissionless claims.
-
 License: Apache-2.0 (see `LICENSE`, `NOTICE`, and `ATTRIBUTION.md`). Tracks: `realworld`, `business`. Baseline: tag `pre-hackathon` at `9f6b73f`; diff `git diff pre-hackathon..hackathon-submission`. Q-015 (second project on the same email): **eidolon** (agent village economy, tracks `games`, `agents`).
 
 ```mermaid
@@ -76,14 +74,10 @@ sequenceDiagram
     end
 ```
 
-- Network: `near:testnet` (CAIP-2), x402 version 2, scheme `exact`; testnet accounts `portico.testnet`, `split.portico.testnet`, `token.portico.testnet`, `relayer.portico.testnet`
-- Payment FT: self-deployed NEP-141, **18 decimals**, raw-unit amounts — portico's **own payment-token, not a third-party stablecoin**; no USDC or other issuer token is used anywhere
-
 ## Primitives
 
 - **NEP-141 / NEP-145** — `portico-payment-token` is the payment FT with 18 decimals and raw-unit amounts; `portico-revenue-split` receives it via one approval-free `ft_transfer_call` per sale, with standard FT storage management (`storage_deposit`, `storage_withdraw`, `storage_unregister`, `storage_balance_bounds`, `storage_balance_of`).
 - **NEP-366** — `SignedDelegateAction` relay: the buyer signs, the relayer submits. The nonce is bounded by `block_height * 1_000_000`; `maxTimeoutSeconds` maps to `blockHeightTtl` at one second per block.
-- **x402 v2 `exact`** — `PAYMENT-REQUIRED`, `PAYMENT-SIGNATURE`, and `PAYMENT-RESPONSE` are base64 headers over CAIP-2 `near:testnet`; `GET /supported` advertises scheme/network pairs. Verification follows all scheme MUSTs except one documented extension: it delegates `ft_transfer_call` with a `msg` dispatcher instead of `ft_transfer`.
 - **NEP-297** — `EVENT_JSON` events for sales, splits, ledger entries, and streams.
 
 ## Origin and license disclosure
@@ -91,8 +85,6 @@ sequenceDiagram
 This repository ports [Sperax/x402-stablecoin](https://github.com/Sperax/x402-stablecoin) to NEAR. The root `LICENSE` is Apache License 2.0 and governs the repository; some origin files carry MIT SPDX headers and MIT metadata, and that conflict resolves to the root license. `NOTICE` records attribution and `ATTRIBUTION.md` records the upstream import. The Solidity contracts are not copied — the NEAR contracts are an independent Rust implementation; `near-sdk-contract-tools` is dual-licensed `GPL-3.0 OR Apache-2.0` and this project elects Apache-2.0. The revenue-split path uses `ft_transfer_call`, a documented extension of the NEAR `exact` scheme (which allows `ft_transfer`): it keeps `args.receiver_id == accepted.payTo` by setting `payTo` to the split contract, and the `msg` dispatcher binds the quoted tool to its registered developer. All other rules stay unchanged.
 
 ## Architecture and layout
-
-The contract owns settlement and accounting. The facilitator holds no funds: it verifies a signed delegate against `PaymentRequired`, relays once, and requires an inner `SuccessValue` receipt in a FINAL outcome.
 
 ```
 contracts/
@@ -114,16 +106,12 @@ tests/              near-workspaces Rust integration tests
 
 **Testnet (2026-11-12): 12.567 TGas and 11.03 s p50 / 11.82 s p95 per gasless sale→80/20 payout.** The run used N=20, all inner FT receipts returned `SuccessValue`, each loop has 12 receipts, and total burnt was 0.022456027285 NEAR. The delegated gas cap stays 100 TGas, the `exact` cap; the split signs one `ft_transfer_call` with `teraToGas(100)`; per-sale latency measures wall time from quote request to FINAL. Accounts: `split.portico.testnet`, `token.portico.testnet`, relayer `portico.testnet`, buyer `nearhack-major.testnet`, RPC `https://test.rpc.fastnear.com`, facilitator `http://127.0.0.1:3002`. Sandbox row (2026-11-12, `near-sandbox` 2.14.0 — **not comparable**): N=20, p50 12.195 TGas, p50 1.385 s, all inner FT receipts `SuccessValue`; local block production and polling dominate that row.
 
-`pnpm bench` runs N=20 sale → split → payout loops and reports p50 and p95: TGas per loop is the sum of `gas_burnt` over `receipts_outcome` divided by 1e12, per-loop latency runs from quote request to FINAL, and `tokens_burnt` is divided by 1e24 and reported as NEAR. Each loop asserts the inner FT receipt is `SuccessValue`; gas enforces a sanity band (7–102 TGas); latency has no floor; the run fails closed on an unavailable stack or band violation. Output ends with `BENCH p50_tgas=… p95_tgas=…` and `HEADLINE:`; `--json` emits the same values; transcripts and verdicts write to `PORTICO_BENCH_TRANSCRIPT` (`../portico-bench-transcript.txt` by default) with p50, p95, min, and max recorded (`PORTICO_BENCH_BASE_URL` overrides `FACILITATOR_URL`, `PORTICO_BENCH_LOOPS` the loop count, `PORTICO_BENCH_LOOP_TIMEOUT_MS` the per-loop FINAL deadline). Run from the repo root against a funded stack and facilitator:
-
 ```bash
 pnpm bench           # root script: tsx scripts/bench.ts, human summary
 pnpm bench --json    # machine-readable output
 ```
 
 ## Quickstart — zero-funds sandbox
-
-Numbered repro (do X, see Y):
 
 1. Build and run the sandbox demo → see `POST /quote` answered with HTTP 402 and the literal header `PAYMENT-REQUIRED` in the demo transcript (`../portico-demo-transcript.txt`).
 2. After the loop finishes → see the final stdout line `OK: quote -> verify -> settle -> ledger sale -> stream -> claim in <ms> ms (< 120000 ms)` and exit code 0.
@@ -137,18 +125,12 @@ pnpm install
 pnpm sandbox:demo             # root script: tsx scripts/sandbox-demo.ts
 ```
 
-`pnpm sandbox:demo` runs `scripts/sandbox-demo.ts` with no funded account, testnet account, or API key. It finds `near-sandbox` with the glob `target/debug/build/near-sandbox-*/out/.near/near-sandbox-*/near-sandbox` (override with `NEAR_SANDBOX_BIN`), starts an ephemeral node, deploys `contracts/revenue-split/target/near/portico_revenue_split.wasm` and `contracts/payment-token/target/near/portico_payment_token.wasm`, creates demo accounts, funds non-buyer accounts, registers `web-search`, and starts the facilitator (`:3002`) and paywall (`:3003`). It then runs `scripts/demo.ts`: `POST /quote` returns 402 with `PAYMENT-REQUIRED`; the SDK signs one NEP-366 delegate for `ft_transfer_call` with 1 yoctoNEAR while the buyer holds FT units and **zero liquid NEAR**; the facilitator verifies and relays the delegate to FINAL; the split pays the developer 80% and credits the platform 20%; `get_ledger` returns the sale, then a stream opens, blocks fast-forward, and the recipient claims. `scripts/demo.ts` asserts zero buyer NEAR and completion inside `PORTICO_DEMO_MAX_MS` (default 120000 ms). Output writes to `PORTICO_DEMO_TRANSCRIPT` (default `<repo>/../portico-demo-transcript.txt`).
-
-Recorded smoke run (no funds, no keys): `pnpm test` (vitest) on this tree ended with:
-
 ```text
  Test Files  7 passed (7)
       Tests  61 passed (61)
    Start at  20:43:57
    Duration  10.84s (transform 50%, import 47%, tests 3%, worker 1%)
 ```
-
-Covers the SDK x402 header/handler/meta-tx/revenue-split suites, the MCP server and tools, and the paywall example (61 tests across 7 files). Overrides: `PORTICO_SANDBOX_RPC_URL` reuses a running node (with `PORTICO_SANDBOX_HOME`, or `PORTICO_SANDBOX_ROOT_ACCOUNT` plus `PORTICO_SANDBOX_ROOT_KEY`); `PORTICO_SANDBOX_KEEP_HOME=1` retains the temporary home; ports 3002 and 3003 must be free (`PORTICO_FACILITATOR_PORT` and `PAYWALL_PORT` override them); `near-sandbox` supports Linux x86_64/ARM64 and macOS ARM64 only (run inside WSL2 on Windows).
 
 ## Testnet quickstart
 
@@ -202,8 +184,6 @@ pnpm --filter paywall dev
 curl -i http://localhost:3003/premium
 ```
 
-Unpaid requests return 402 with `PAYMENT-REQUIRED`. Retries with `PAYMENT-SIGNATURE` are verified and settled via the facilitator before returning data and `PAYMENT-RESPONSE`; failed settlements omit the paid body. `GET /health` reports resource, amount, tool, and facilitator. Set `PAYWALL_PRICE` to the tool raw price (`1000000` for `web-search`); the paywall quotes that exact amount.
-
 ## MCP server
 
 ```bash
@@ -216,8 +196,6 @@ The server speaks newline-delimited JSON-RPC 2.0 on stdio (protocol `2024-11-05`
 
 ## Environment
 
-Defaults live in `.env.example`. Required variables fail closed at boot.
-
 | Variable                                                                                                  | Default                                                  | Meaning                                                           |
 | --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ----------------------------------------------------------------- |
 | `PORTICO_RPC_URL` / `PORTICO_NETWORK`                                                                     | `https://test.rpc.fastnear.com` / `near:testnet`         | JSON-RPC endpoint, CAIP-2 network in `accepts[]`                  |
@@ -229,8 +207,6 @@ Defaults live in `.env.example`. Required variables fail closed at boot.
 | `RATE_LIMIT_WINDOW_MS` / `RATE_LIMIT_MAX`                                                                 | `60000` / `100`                                          | rate-limit window, requests per window                            |
 | `PORTICO_BUYER_ACCOUNT` / `PORTICO_BUYER_SECRET_KEY`                                                      | `buyer1.portico.testnet` / —                             | zero-NEAR buyer account, full-access key                          |
 | `PORTICO_STREAM_SUBSCRIBER_ACCOUNT` / `PORTICO_STREAM_SUBSCRIBER_SECRET_KEY` / `PORTICO_STREAM_RECIPIENT` | `streamer.portico.testnet` / — / `PORTICO_DEV_ACCOUNT`   | stream funder, funder key, stream payee                           |
-
-Demo, sandbox, and bench variables (`PORTICO_DEMO_*`, `NEAR_SANDBOX_BIN`, `PORTICO_SANDBOX_*`, `PORTICO_BENCH_*`) are documented inline in the quickstart and bench sections above.
 
 Paywall variables live in `.env.example` and `examples/paywall/src/index.ts`: `PORTICO_TOKEN_CONTRACT`, `PORTICO_SPLIT_CONTRACT`, `PAYWALL_PORT` 3003, `PAYWALL_PRICE` 1000000 raw units, `PAYWALL_TOOL` `web-search`, `PAYWALL_RESOURCE_URL`, `PAYWALL_DESCRIPTION`, `PAYWALL_MAX_TIMEOUT_SECONDS`, `PAYWALL_ALLOWED_ORIGINS`.
 
@@ -245,7 +221,6 @@ Paywall variables live in `.env.example` and `examples/paywall/src/index.ts`: `P
 
 ## Limits and scope
 
-- **Testnet only.** Defaults target `near:testnet`. Do not point `PORTICO_NETWORK` or RPC at mainnet.
 - **The relayer prepays.** The buyer needs a full-access key and zero liquid NEAR. The relayer pays gas and 1 yoctoNEAR. On failure, unused FT returns to the relayer, capping exposure at gas plus 1 yocto.
 - **Asynchronous finality.** `/settle` can return HTTP 202 `settlement_pending` with the outer hash. Poll `/payments/:txHash` and do not re-sign. The cache blocks duplicate settlement.
 - **Storage headroom caps.** Payment writes are unfunded since `ft_on_transfer` carries no NEAR. Caps are 10,000 balance keys, 10,000 streams, and 100,000 ledger entries. Adding a key requires `storage_byte_cost * (storage_usage + entry_bytes + 32768)` liquid balance. Exceeding a cap or headroom refunds the payment unused.
@@ -261,8 +236,6 @@ pnpm -r test
 pnpm typecheck
 pnpm lint
 ```
-
-Run the near-workspaces suite on Linux x86-64/ARM64 or macOS ARM64 (WSL2 on Windows). Its helpers deploy `cargo near build` artifacts from `contracts/<crate>/target/near/`.
 
 - Node.js >= 26.13.1 and pnpm >= 12.18.0 (repository floor; `near-api-js` 7.5.3 itself requires Node >= 22.22.2)
 - Rust 1.100.0 pinned in `rust-toolchain.toml` (MSRV 1.95) with `wasm32-unknown-unknown`
