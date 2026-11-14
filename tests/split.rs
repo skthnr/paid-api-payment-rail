@@ -587,7 +587,7 @@ async fn split_pay_tools_batch_credits_each_leg_once() -> Result<()> {
     must_succeed(&outcome, "pay_tools batch");
 
     assert_eq!(harness.ft_balance(harness.buyer.id()).await?, buyer_start - total);
-    assert_eq!(harness.ft_balance(harness.split.id()).await?, 0);
+    assert_eq!(harness.ft_balance(harness.split.id()).await?, total); // escrow reserve backing balances
     assert_eq!(harness.developer_balance(harness.developer.id()).await?, 2_400_000);
     assert_eq!(harness.developer_balance(harness.platform.id()).await?, 600_000);
     assert_eq!(harness.totals().await?.settled_volume.0, total);

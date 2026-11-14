@@ -463,7 +463,7 @@ describe('portico native sandbox integration (23 scenarios)', { concurrency: fal
     const total = firstPrice + secondPrice;
     mustSucceed(await h.ftc(total, payToolsMsg(['web-search', 'image-gen'])), 'pay_tools batch');
     eqU(await h.ftBalance(h.buyer.accountId), buyerStart - total);
-    eqU(await h.ftBalance(h.split.accountId), 0n);
+    eqU(await h.ftBalance(h.split.accountId), total); // escrow reserve backing the withdrawable balances
     eqU(await h.developerBalance(h.developer.accountId), 2_400_000n);
     eqU(await h.developerBalance(h.platform.accountId), 600_000n);
     eqU((await h.totals()).settled_volume, total);
