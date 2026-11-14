@@ -267,6 +267,13 @@ Run the near-workspaces suite on Linux x86-64/ARM64 or macOS ARM64 (WSL2 on Wind
 - `cargo-near` 0.23.0 and `near-cli-rs` 0.31.1 for deployments
 - `near-sandbox` for the local sandbox quickstart; a NEAR testnet account in the `near` CLI keychain for testnet runs
 
+## Baseline and disclosure
+
+- Baseline: tag `pre-hackathon` marks the imported tree at `9f6b73f`. The upstream project is `x402-stablecoin`.
+- Submission: tag `hackathon-submission` marks the state at `b7df5c2`.
+- Diff: `git diff pre-hackathon..hackathon-submission`. After publishing, https://github.com/<owner>/<repo>/compare/pre-hackathon...hackathon-submission.
+- Libraries, templates and AI-generated code are listed in `ATTRIBUTION.md` and `NOTICE`.
+
 ## License and hackathon
 
 Apache-2.0. See `LICENSE`, `NOTICE`, and `ATTRIBUTION.md`. Tracks: `business`, `realworld`. Submission checklist and payload fields: `SUBMISSION-PREP.md`.
