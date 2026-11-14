@@ -2,6 +2,8 @@
 
 portico implements the x402 v2 `exact` payment scheme on NEAR for paid APIs. A buyer signs a NEP-366 `SignedDelegateAction` with one NEP-141 `ft_transfer_call` into a revenue-split contract. A relayer submits the delegate and pays gas plus 1 yoctoNEAR. The contract splits each sale between the developer and the platform, then appends it to a public ledger. Subscription revenue streams accrue per block for permissionless claims.
 
+License: Apache-2.0 (see `LICENSE`, `NOTICE`, and `ATTRIBUTION.md`). Tracks: `realworld`, `business`. Baseline: tag `pre-hackathon` marks the imported upstream tree (`x402-stablecoin`) at `9f6b73f`; full accounting under "Baseline and disclosure" below. Q-015 (second project on the same email): none named; cross-reference in `SUBMISSION-PREP.md`.
+
 ```mermaid
 sequenceDiagram
     accTitle: portico runtime flow
@@ -76,7 +78,7 @@ sequenceDiagram
 
 - Network: `near:testnet` (CAIP-2), x402 version 2, scheme `exact`
 - Testnet accounts: `portico.testnet`, `split.portico.testnet`, `token.portico.testnet`, `relayer.portico.testnet`
-- Payment FT: self-deployed NEP-141, **18 decimals**, raw-unit amounts
+- Payment FT: self-deployed NEP-141, **18 decimals**, raw-unit amounts — portico's **own payment-token, not a third-party stablecoin**; no USDC or other issuer token is used anywhere
 - License: Apache-2.0 (see `LICENSE` and `NOTICE`)
 
 ## Primitives
@@ -128,6 +130,12 @@ pnpm bench --json    # machine-readable output
 
 ## Quickstart — zero-funds sandbox
 
+Numbered repro (do X, see Y):
+
+1. Build and run the sandbox demo → see `POST /quote` answered with HTTP 402 and the literal header `PAYMENT-REQUIRED` in the demo transcript (`../portico-demo-transcript.txt`).
+2. After the loop finishes → see the final stdout line `OK: quote -> verify -> settle -> ledger sale -> stream -> claim in <ms> ms (< 120000 ms)` and exit code 0.
+3. If anything fails → see stderr `portico demo failed: <reason>` and exit code 1; over-budget runs print `demo took <ms> ms, exceeding the 120000 ms budget`.
+
 ```bash
 pnpm install
 # build the two WASMs first (cargo-near)
@@ -137,6 +145,17 @@ pnpm sandbox:demo             # root script: tsx scripts/sandbox-demo.ts
 ```
 
 `pnpm sandbox:demo` runs `scripts/sandbox-demo.ts` with no funded account, testnet account, or API key. It finds `near-sandbox` with the glob `target/debug/build/near-sandbox-*/out/.near/near-sandbox-*/near-sandbox`. Set `NEAR_SANDBOX_BIN` to override it. It starts an ephemeral node. It deploys `contracts/revenue-split/target/near/portico_revenue_split.wasm` and `contracts/payment-token/target/near/portico_payment_token.wasm`. It creates demo accounts, funds non-buyer accounts, registers `web-search`, and starts the facilitator (`:3002`) and paywall (`:3003`). It then runs `scripts/demo.ts`: `POST /quote` returns 402 with `PAYMENT-REQUIRED`; the SDK signs one NEP-366 delegate for `ft_transfer_call` with 1 yoctoNEAR while the buyer holds FT units and **zero liquid NEAR**; the facilitator verifies and relays the delegate to FINAL; the split pays the developer 80% and credits the platform 20%; `get_ledger` returns the sale, then a stream opens, blocks fast-forward, and the recipient claims. `scripts/demo.ts` asserts zero buyer NEAR and completion inside `PORTICO_DEMO_MAX_MS` (default 120000 ms). Output writes to `PORTICO_DEMO_TRANSCRIPT` (default `<repo>/../portico-demo-transcript.txt`).
+
+Recorded smoke run (no funds, no keys): `pnpm test` (vitest) on this tree ended with:
+
+```text
+ Test Files  7 passed (7)
+      Tests  61 passed (61)
+   Start at  20:43:57
+   Duration  10.84s (transform 50%, import 47%, tests 3%, worker 1%)
+```
+
+Covers the SDK x402 header/handler/meta-tx/revenue-split suites, the MCP server and tools, and the paywall example (61 tests across 7 files).
 
 Overrides: `PORTICO_SANDBOX_RPC_URL` reuses a running node (with `PORTICO_SANDBOX_HOME`, or `PORTICO_SANDBOX_ROOT_ACCOUNT` plus `PORTICO_SANDBOX_ROOT_KEY`). `PORTICO_SANDBOX_KEEP_HOME=1` retains the temporary home. Ports 3002 and 3003 must be free (`PORTICO_FACILITATOR_PORT` and `PAYWALL_PORT` override them). `near-sandbox` supports Linux x86_64/ARM64 and macOS ARM64 only. On Windows, run inside WSL2.
 
