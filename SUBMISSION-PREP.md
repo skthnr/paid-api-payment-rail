@@ -51,10 +51,10 @@ Never add `website`. Print full JSON and wait for explicit yes. 201 means saved.
 
 ## Rules checklist
 
-- Q-003: 6 pre-existing tags, none of the required pair, and no README diff link. **Not satisfied**. Local tags deliberately not created.
+- Q-003: local tags `pre-hackathon` (`9f6b73f`) and `hackathon-submission` exist; README carries the baseline line and the diff command; the published compare URL stays a placeholder until a remote exists.
 - Q-012 video required when judges cannot open the demo.
-- Q-014 `LICENSE` and `NOTICE` present. Q-017 README "Quickstart — zero-funds sandbox" at line 124 and "Testnet quickstart" at line 138.
-- Q-015 second project on same email must be named in README. Unresolved.
+- Q-014 `LICENSE` and `NOTICE` present. Q-017 README "Quickstart — zero-funds sandbox" at line 124 and "Testnet quickstart" at line 153.
+- Q-015 second project on same email must be named in README. Resolved — README header names **eidolon** (agent village economy, tracks `games`, `agents`).
 - Q-002/Q-005 origin disclosure: README "Origin and license disclosure" at line 85, plus root `NOTICE` and `ATTRIBUTION.md` (`upstream_revision = not recorded`).
 - W5 COUNTEREXAMPLED: TS 7.0.2 + `@typescript/typescript6` 6.0.2, with `TS5102` and `TS2345` x4 fixed. ESLint 10.15.0 flat config, Express 5.3.0, Vitest 5.1.0. `DUP_FINAL=14` (48 -> 14). Final tree 23/23 `FINAL_23_RC=0` on Celesto Box B.
 

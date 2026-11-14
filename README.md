@@ -112,7 +112,7 @@ tests/              near-workspaces Rust integration tests
 
 ## Measured performance
 
-**Testnet (2026-11-12): 12.567 TGas and 11.03 s p50 / 11.82 s p95 per gasless sale→80/20 payout.** The run used N=20, all inner FT receipts returned `SuccessValue`, each loop has 12 receipts, and total burnt was 0.022456027285 NEAR. The delegated gas cap stays 100 TGas, the `exact` cap; the split signs one `ft_transfer_call` with `teraToGas(100)`; `s per gasless sale` measures wall time from quote request to FINAL. Accounts: `split.portico.testnet`, `token.portico.testnet`, relayer `portico.testnet`, buyer `nearhack-major.testnet`, RPC `https://test.rpc.fastnear.com`, facilitator `http://127.0.0.1:3002`. Sandbox row (2026-11-12, `near-sandbox` 2.14.0 — **not comparable**): N=20, p50 12.195 TGas, p50 1.385 s, all inner FT receipts `SuccessValue`; local block production and polling dominate that row.
+**Testnet (2026-11-12): 12.567 TGas and 11.03 s p50 / 11.82 s p95 per gasless sale→80/20 payout.** The run used N=20, all inner FT receipts returned `SuccessValue`, each loop has 12 receipts, and total burnt was 0.022456027285 NEAR. The delegated gas cap stays 100 TGas, the `exact` cap; the split signs one `ft_transfer_call` with `teraToGas(100)`; per-sale latency measures wall time from quote request to FINAL. Accounts: `split.portico.testnet`, `token.portico.testnet`, relayer `portico.testnet`, buyer `nearhack-major.testnet`, RPC `https://test.rpc.fastnear.com`, facilitator `http://127.0.0.1:3002`. Sandbox row (2026-11-12, `near-sandbox` 2.14.0 — **not comparable**): N=20, p50 12.195 TGas, p50 1.385 s, all inner FT receipts `SuccessValue`; local block production and polling dominate that row.
 
 `pnpm bench` runs N=20 sale → split → payout loops and reports p50 and p95: TGas per loop is the sum of `gas_burnt` over `receipts_outcome` divided by 1e12, per-loop latency runs from quote request to FINAL, and `tokens_burnt` is divided by 1e24 and reported as NEAR. Each loop asserts the inner FT receipt is `SuccessValue`; gas enforces a sanity band (7–102 TGas); latency has no floor; the run fails closed on an unavailable stack or band violation. Output ends with `BENCH p50_tgas=… p95_tgas=…` and `HEADLINE:`; `--json` emits the same values; transcripts and verdicts write to `PORTICO_BENCH_TRANSCRIPT` (`../portico-bench-transcript.txt` by default) with p50, p95, min, and max recorded (`PORTICO_BENCH_BASE_URL` overrides `FACILITATOR_URL`, `PORTICO_BENCH_LOOPS` the loop count, `PORTICO_BENCH_LOOP_TIMEOUT_MS` the per-loop FINAL deadline). Run from the repo root against a funded stack and facilitator:
 
@@ -264,7 +264,7 @@ pnpm lint
 
 Run the near-workspaces suite on Linux x86-64/ARM64 or macOS ARM64 (WSL2 on Windows). Its helpers deploy `cargo near build` artifacts from `contracts/<crate>/target/near/`.
 
-- Node.js >= 26.13.1 and pnpm >= 12.18.0 (the `near-api-js` 7.5.3 floor)
+- Node.js >= 26.13.1 and pnpm >= 12.18.0 (repository floor; `near-api-js` 7.5.3 itself requires Node >= 22.22.2)
 - Rust 1.100.0 pinned in `rust-toolchain.toml` (MSRV 1.95) with `wasm32-unknown-unknown`
 - `cargo-near` 0.23.0 and `near-cli-rs` 0.31.1 for deployments
 - `near-sandbox` for the local sandbox quickstart; a NEAR testnet account in the `near` CLI keychain for testnet runs
