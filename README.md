@@ -3,7 +3,6 @@
 portico implements the x402 v2 `exact` payment scheme on NEAR for paid APIs. A buyer signs a NEP-366 `SignedDelegateAction` with one NEP-141 `ft_transfer_call` into a revenue-split contract. A relayer submits the delegate and pays gas plus 1 yoctoNEAR. The contract splits each sale between the developer and the platform, then appends it to a public ledger. Subscription revenue streams accrue per block for permissionless claims.
 
 ```mermaid
-%%{init: {"theme":"base","themeVariables":{"fontSize":"14px"}}}%%
 sequenceDiagram
     accTitle: portico runtime flow
     accDescr: Payer wallet, SDK, facilitator, RPC and contracts settle one gasless x402 payment and accrue stream.
