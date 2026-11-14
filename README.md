@@ -276,3 +276,6 @@ The near-workspaces suite needs Linux x86-64/ARM64 or macOS ARM64 (WSL2 on Windo
 
 Apache-2.0. See `LICENSE` for the full text and `NOTICE` for origin attribution and the license-conflict resolution.
 
+## Hackathon
+
+Track: `business`. Development ends 2026-11-14T23:59:00Z (UTC).
