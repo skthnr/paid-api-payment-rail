@@ -79,12 +79,12 @@ sequenceDiagram
 - **NEP-141** — `portico-payment-token` is the payment FT with 18 decimals and raw-unit amounts. `portico-revenue-split` receives it. Each sale uses one `ft_transfer_call` with no approval.
 - **NEP-145** — FT storage management: `storage_deposit`, `storage_withdraw`, `storage_unregister`, `storage_balance_bounds`, `storage_balance_of`.
 - **NEP-366** — `SignedDelegateAction` relay: the buyer signs and the relayer submits. The nonce is bounded by `block_height * 1_000_000`. The TTL uses `maxTimeoutSeconds`, mapped to `blockHeightTtl` at one second per block.
-- **x402 v2 `exact`** — `PAYMENT-REQUIRED`, `PAYMENT-SIGNATURE`, and `PAYMENT-RESPONSE` are base64 headers over CAIP-2 `near:testnet`. `GET /supported` advertises scheme/network pairs and relayer `signers`. Verification follows all scheme MUSTs. The revenue-split path changes one rule. It delegates `ft_transfer_call` with a `msg` dispatcher instead of `ft_transfer`. See the protocol notes below.
+- **x402 v2 `exact`** — `PAYMENT-REQUIRED`, `PAYMENT-SIGNATURE`, and `PAYMENT-RESPONSE` are base64 headers over CAIP-2 `near:testnet`. `GET /supported` advertises scheme/network pairs and relayer `signers`. Verification follows all scheme MUSTs. The revenue-split path changes one rule. It delegates `ft_transfer_call` with a `msg` dispatcher instead of `ft_transfer`.
 - **NEP-297** — `EVENT_JSON` events for sales, splits, ledger entries, and streams.
 
 ## Origin and license disclosure
 
-This repository ports [Sperax/x402-stablecoin](https://github.com/Sperax/x402-stablecoin) to NEAR. The root `LICENSE` is Apache License 2.0 and governs the repository. Some origin files carry MIT SPDX headers and MIT metadata. That conflict resolves to the root license. `NOTICE` records attribution. The Solidity contracts are not copied. The NEAR contracts are an independent Rust implementation. `near-sdk-contract-tools` is dual-licensed `GPL-3.0 OR Apache-2.0`. This project elects Apache-2.0.
+This repository ports [Sperax/x402-stablecoin](https://github.com/Sperax/x402-stablecoin) to NEAR. The root `LICENSE` is Apache License 2.0 and governs the repository. Some origin files carry MIT SPDX headers and MIT metadata; that conflict resolves to the root license. `NOTICE` records attribution and `ATTRIBUTION.md` records the upstream import. The Solidity contracts are not copied. The NEAR contracts are an independent Rust implementation. `near-sdk-contract-tools` is dual-licensed `GPL-3.0 OR Apache-2.0`. This project elects Apache-2.0.
 
 The revenue-split path uses `ft_transfer_call`, a documented extension of the NEAR `exact` scheme. That scheme allows `ft_transfer`. The path keeps `args.receiver_id == accepted.payTo` by setting `payTo` to the split contract. The `msg` dispatcher binds the quoted tool to its registered developer. All other rules stay unchanged.
 
@@ -108,17 +108,13 @@ scripts/
 tests/              near-workspaces Rust integration tests
 ```
 
-## Headline numbers
+## Measured performance
 
-**Headline (testnet, 2026-11-12): 12.567 TGas and 11.03 s p50 / 11.82 s p95 per gasless sale→80/20 payout.**
+**Testnet (2026-11-12): 12.567 TGas and 11.03 s p50 / 11.82 s p95 per gasless sale→80/20 payout.** The run used N=20. All inner FT receipts returned `SuccessValue`. Each loop has 12 receipts. Total burnt was 0.022456027285 NEAR. The delegated gas cap stays 100 TGas, the `exact` cap. The split signs one `ft_transfer_call` with `teraToGas(100)`. `s per gasless sale` measures wall time from quote request to FINAL. That run used `split.portico.testnet`, `token.portico.testnet`, relayer `portico.testnet`, buyer `nearhack-major.testnet`, RPC `https://test.rpc.fastnear.com`, and facilitator `http://127.0.0.1:3002`.
 
-The run used N=20. All inner FT receipts returned `SuccessValue`. Each loop has 12 receipts. Total burnt was 0.022456027285 NEAR. The delegated gas cap stays 100 TGas, the `exact` cap. The split signs one `ft_transfer_call` with `teraToGas(100)`. `s per gasless sale` measures wall time from quote request to FINAL. That run used `split.portico.testnet`, `token.portico.testnet`, relayer `portico.testnet`, buyer `nearhack-major.testnet`, RPC `https://test.rpc.fastnear.com`, and facilitator `http://127.0.0.1:3002`.
+Sandbox row (2026-11-12, `near-sandbox` 2.14.0 — **not comparable**): N=20, p50 12.195 TGas, p50 1.385 s, all inner FT receipts `SuccessValue`. Local block production and polling dominate that row.
 
-Sandbox row (2026-11-12, `near-sandbox` 2.14.0 — **not comparable**): N=20, p50 12.195 TGas, p50 1.385 s, all inner FT receipts `SuccessValue`. Local block production and polling dominate that row. It is not the testnet headline.
-
-`pnpm bench` runs N=20 sale → split → payout loops and reports p50 and p95. TGas per loop is the sum of `gas_burnt` over `receipts_outcome`, divided by 1e12. Wall-clock latency per loop runs from quote request to FINAL. `tokens_burnt` is divided by 1e24 and reported as NEAR.
-
-Each loop asserts the inner FT receipt is `SuccessValue`. Gas enforces a sanity band (7–102 TGas). Latency has no floor. p50, p95, min, and max are recorded with the command. The run fails closed on an unavailable stack or band violation. Output ends with `BENCH p50_tgas=… p95_tgas=…` and `HEADLINE:`. `--json` emits the same values. Transcripts and verdicts write to `PORTICO_BENCH_TRANSCRIPT` (`../W4-NUMBERS.txt` by default). Run from the repo root against a funded stack and facilitator:
+`pnpm bench` runs N=20 sale → split → payout loops and reports p50 and p95. TGas per loop is the sum of `gas_burnt` over `receipts_outcome`, divided by 1e12; per-loop latency runs from quote request to FINAL; `tokens_burnt` is divided by 1e24 and reported as NEAR. Each loop asserts the inner FT receipt is `SuccessValue`. Gas enforces a sanity band (7–102 TGas). Latency has no floor. The run fails closed on an unavailable stack or band violation. Output ends with `BENCH p50_tgas=… p95_tgas=…` and `HEADLINE:`. `--json` emits the same values. Transcripts and verdicts write to `PORTICO_BENCH_TRANSCRIPT` (`../portico-bench-transcript.txt` by default), and p50, p95, min, and max are recorded with the command. Run from the repo root against a funded stack and facilitator:
 
 ```bash
 pnpm bench           # root script: tsx scripts/bench.ts, human summary
@@ -126,8 +122,6 @@ pnpm bench --json    # machine-readable output
 ```
 
 ## Quickstart — zero-funds sandbox
-
-This quickstart needs no funded account. It starts `near-sandbox`, deploys both WASMs, creates accounts, starts the facilitator and paywall, and runs the loop:
 
 ```bash
 pnpm install
@@ -137,14 +131,7 @@ pnpm install
 pnpm sandbox:demo             # root script: tsx scripts/sandbox-demo.ts
 ```
 
-`pnpm sandbox:demo` runs `scripts/sandbox-demo.ts` with no testnet account or API key. It finds `near-sandbox` with the glob `target/debug/build/near-sandbox-*/out/.near/near-sandbox-*/near-sandbox`. Set `NEAR_SANDBOX_BIN` to override it. It starts an ephemeral node. It deploys `contracts/revenue-split/target/near/portico_revenue_split.wasm` and `contracts/payment-token/target/near/portico_payment_token.wasm`. It creates demo accounts, funds non-buyer accounts, registers `web-search`, and starts the facilitator (`:3002`) and paywall (`:3003`). It then runs `scripts/demo.ts`:
-
-1. `POST /quote` returns 402 with `PAYMENT-REQUIRED`.
-2. The SDK signs one NEP-366 delegate for `ft_transfer_call` with 1 yoctoNEAR. The buyer holds FT units and **zero liquid NEAR**.
-3. The facilitator verifies and relays the delegate, then waits for FINAL.
-4. The split contract pays the developer 80% and credits the platform 20%.
-5. `get_ledger` returns the sale. Next, a stream opens, blocks fast-forward, and the recipient claims.
-6. The script asserts zero buyer NEAR and completion inside `PORTICO_DEMO_MAX_MS` (default 120000 ms). Output writes to `PORTICO_DEMO_TRANSCRIPT` (default `<repo>/../W4-DEMO-TRANSCRIPT.txt`).
+`pnpm sandbox:demo` runs `scripts/sandbox-demo.ts` with no funded account, testnet account, or API key. It finds `near-sandbox` with the glob `target/debug/build/near-sandbox-*/out/.near/near-sandbox-*/near-sandbox`. Set `NEAR_SANDBOX_BIN` to override it. It starts an ephemeral node. It deploys `contracts/revenue-split/target/near/portico_revenue_split.wasm` and `contracts/payment-token/target/near/portico_payment_token.wasm`. It creates demo accounts, funds non-buyer accounts, registers `web-search`, and starts the facilitator (`:3002`) and paywall (`:3003`). It then runs `scripts/demo.ts`: `POST /quote` returns 402 with `PAYMENT-REQUIRED`; the SDK signs one NEP-366 delegate for `ft_transfer_call` with 1 yoctoNEAR while the buyer holds FT units and **zero liquid NEAR**; the facilitator verifies and relays the delegate to FINAL; the split pays the developer 80% and credits the platform 20%; `get_ledger` returns the sale, then a stream opens, blocks fast-forward, and the recipient claims. `scripts/demo.ts` asserts zero buyer NEAR and completion inside `PORTICO_DEMO_MAX_MS` (default 120000 ms). Output writes to `PORTICO_DEMO_TRANSCRIPT` (default `<repo>/../portico-demo-transcript.txt`).
 
 Overrides: `PORTICO_SANDBOX_RPC_URL` reuses a running node (with `PORTICO_SANDBOX_HOME`, or `PORTICO_SANDBOX_ROOT_ACCOUNT` plus `PORTICO_SANDBOX_ROOT_KEY`). `PORTICO_SANDBOX_KEEP_HOME=1` retains the temporary home. Ports 3002 and 3003 must be free (`PORTICO_FACILITATOR_PORT` and `PAYWALL_PORT` override them). `near-sandbox` supports Linux x86_64/ARM64 and macOS ARM64 only. On Windows, run inside WSL2.
 
@@ -214,7 +201,7 @@ The server speaks newline-delimited JSON-RPC 2.0 on stdio (protocol `2024-11-05`
 
 ## Environment
 
-Defaults live in `.env.example`. Required variables fail closed at boot. Values in the Default column follow variable order.
+Defaults live in `.env.example`. Required variables fail closed at boot.
 
 | Variable                                                                                                  | Default                                                  | Meaning                                                           |
 | --------------------------------------------------------------------------------------------------------- | -------------------------------------------------------- | ----------------------------------------------------------------- |
@@ -228,11 +215,11 @@ Defaults live in `.env.example`. Required variables fail closed at boot. Values 
 | `PORTICO_BUYER_ACCOUNT` / `PORTICO_BUYER_SECRET_KEY`                                                      | `buyer1.portico.testnet` / —                             | zero-NEAR buyer account, full-access key                          |
 | `PORTICO_STREAM_SUBSCRIBER_ACCOUNT` / `PORTICO_STREAM_SUBSCRIBER_SECRET_KEY` / `PORTICO_STREAM_RECIPIENT` | `streamer.portico.testnet` / — / `PORTICO_DEV_ACCOUNT`   | stream funder, funder key, stream payee                           |
 | `PORTICO_DEMO_TOOL` / `PORTICO_DEMO_EXPECTED_AMOUNT`                                                      | `web-search` / unset                                     | tool paid by the demo and bench, optional quote-amount assertion  |
-| `PORTICO_DEMO_MAX_MS` / `PORTICO_DEMO_TRANSCRIPT`                                                         | `120000` / `../W4-DEMO-TRANSCRIPT.txt`                   | demo loop budget asserted, sandbox demo transcript                |
+| `PORTICO_DEMO_MAX_MS` / `PORTICO_DEMO_TRANSCRIPT`                                                         | `120000` / `../portico-demo-transcript.txt`              | demo loop budget asserted, sandbox demo transcript                |
 | `NEAR_SANDBOX_BIN` / `PORTICO_SANDBOX_RPC_URL` / `PORTICO_SANDBOX_HOME`                                   | auto glob under `target/debug/build` / empty / temporary | `near-sandbox` binary, RPC to reuse, sandbox home                 |
 | `PORTICO_SANDBOX_ROOT_ACCOUNT` / `PORTICO_SANDBOX_ROOT_KEY` / `PORTICO_SANDBOX_KEEP_HOME`                 | — / — / unset                                            | root account and key for a reused RPC, `1` keeps the sandbox home |
 | `PORTICO_BENCH_BASE_URL` / `PORTICO_BENCH_LOOPS`                                                          | `FACILITATOR_URL` / `20`                                 | bench facilitator override, bench loop count                      |
-| `PORTICO_BENCH_LOOP_TIMEOUT_MS` / `PORTICO_BENCH_TRANSCRIPT`                                              | `120000` / `../W4-NUMBERS.txt`                           | per-loop FINAL deadline, bench transcript path                    |
+| `PORTICO_BENCH_LOOP_TIMEOUT_MS` / `PORTICO_BENCH_TRANSCRIPT`                                              | `120000` / `../portico-bench-transcript.txt`             | per-loop FINAL deadline, bench transcript path                    |
 
 Paywall variables live in `.env.example` and `examples/paywall/src/index.ts`. They are `PORTICO_TOKEN_CONTRACT`, `PORTICO_SPLIT_CONTRACT`, `PAYWALL_PORT` 3003, `PAYWALL_PRICE` 1000000 raw units, `PAYWALL_TOOL` `web-search`, `PAYWALL_RESOURCE_URL`, `PAYWALL_DESCRIPTION`, `PAYWALL_MAX_TIMEOUT_SECONDS`, `PAYWALL_ALLOWED_ORIGINS`.
 
@@ -254,8 +241,7 @@ Paywall variables live in `.env.example` and `examples/paywall/src/index.ts`. Th
 - **The relayer prepays.** The buyer needs a full-access key and zero liquid NEAR. The relayer pays gas and 1 yoctoNEAR. On failure, unused FT returns to the relayer, capping exposure at gas plus 1 yocto.
 - **Asynchronous finality.** `/settle` can return HTTP 202 `settlement_pending` with the outer hash. Poll `/payments/:txHash` and do not re-sign. The cache blocks duplicate settlement.
 - **Storage headroom caps.** Payment writes are unfunded since `ft_on_transfer` carries no NEAR. Caps are 10,000 balance keys, 10,000 streams, and 100,000 ledger entries. Adding a key requires `storage_byte_cost * (storage_usage + entry_bytes + 32768)` liquid balance. Exceeding a cap or headroom refunds the payment unused.
-- **No custody.** The facilitator holds zero funds. The contract holds stream escrow and withdrawable developer balances only.
-- **Submission is human-only.** No command submits, pushes, or posts. A human reviews and submits the payload. No mainnet deploy or real-asset custody exists.
+- **No custody.** The facilitator holds zero funds. The contract holds stream escrow and withdrawable developer balances only. No mainnet deploy or real-asset custody exists.
 - **Streams are payment schedules, not investments.** They accrue a prepaid budget per block without yield or APY claims.
 
 ## Tests and requirements
@@ -274,9 +260,8 @@ Run the near-workspaces suite on Linux x86-64/ARM64 or macOS ARM64 (WSL2 on Wind
 - Node.js >= 26.13.1 and pnpm >= 12.18.0 (the `near-api-js` 7.5.3 floor)
 - Rust 1.100.0 pinned in `rust-toolchain.toml` (MSRV 1.95) with `wasm32-unknown-unknown`
 - `cargo-near` 0.23.0 and `near-cli-rs` 0.31.1 for deployments
-- `near-sandbox` for the local sandbox quickstart
-- A NEAR testnet account in the `near` CLI keychain for testnet runs
+- `near-sandbox` for the local sandbox quickstart; a NEAR testnet account in the `near` CLI keychain for testnet runs
 
 ## License and hackathon
 
-Apache-2.0. See `LICENSE` and `NOTICE`. Tracks: `business`, `realworld`. Development ends 2026-11-14T23:59:00Z (UTC).
+Apache-2.0. See `LICENSE`, `NOTICE`, and `ATTRIBUTION.md`. Tracks: `business`, `realworld`. Submission checklist and payload fields: `SUBMISSION-PREP.md`.

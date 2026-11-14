@@ -48,3 +48,28 @@ coverage/
 
 # Generated Rust lockfiles (workspace-free crates)
 Cargo.lock
+
+# Doc temporaries
+*.md.bak
+*.md.tmp
+*.md.orig
+.~*
+
+# Test and runtime output
+.coverage
+.pytest_cache/
+htmlcov/
+bench.json
+bench*.json
+*.out
+*.err
+evidence/*.log
+
+# Tool caches
+.parcel-cache/
+__pycache__/
+.mypy_cache/
+.ruff_cache/
+
+# Framework build output
+.next/

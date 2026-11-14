@@ -1,8 +1,8 @@
 #!/usr/bin/env tsx
 /**
- * PIN 3 reproducibility harness: the zero-funds demo on a fresh Linux sandbox.
+ * Reproducibility harness: the zero-funds demo on a fresh Linux sandbox.
  *
- * One command bootstraps everything the W4 demo needs, with no testnet
+ * One command bootstraps everything the sandbox demo needs, with no testnet
  * accounts, faucet, API key or previously deployed contract:
  *
  *   near-sandbox init --fast + run   (ephemeral RPC/network ports, temp home)
@@ -32,7 +32,7 @@
  *                               explicit root credentials for an external sandbox
  *   PORTICO_SANDBOX_KEEP_HOME=1 keep the created sandbox home after the run
  *   PORTICO_DEMO_TRANSCRIPT     transcript path (default:
- *                               <repo>/../W4-DEMO-TRANSCRIPT.txt, outside the repo)
+ *                               <repo>/../portico-demo-transcript.txt, outside the repo)
  *   PORTICO_DEMO_MAX_MS         demo budget, default 120000
  *   PORTICO_FACILITATOR_PORT    default 3002
  *   PAYWALL_PORT                default 3003
@@ -313,7 +313,7 @@ function httpUrl(value: string, name: string): string {
 function loadConfig(): SandboxDemoConfig {
   const repoRoot = resolve(fileURLToPath(new URL('..', import.meta.url)));
   const transcriptPath = resolve(
-    envValue('PORTICO_DEMO_TRANSCRIPT') ?? join(repoRoot, '..', 'W4-DEMO-TRANSCRIPT.txt')
+    envValue('PORTICO_DEMO_TRANSCRIPT') ?? join(repoRoot, '..', 'portico-demo-transcript.txt')
   );
   const externalRpcUrlRaw = envValue('PORTICO_SANDBOX_RPC_URL');
   const externalRpcUrl =
@@ -332,7 +332,7 @@ function loadConfig(): SandboxDemoConfig {
   const benchMode =
     envValue('PORTICO_SANDBOX_BENCH') === '1' || envValue('PORTICO_SANDBOX_BENCH') === 'true';
   const benchTranscriptPath = resolve(
-    envValue('PORTICO_BENCH_TRANSCRIPT') ?? join(repoRoot, '..', 'W4-NUMBERS.txt')
+    envValue('PORTICO_BENCH_TRANSCRIPT') ?? join(repoRoot, '..', 'portico-bench-transcript.txt')
   );
   const tokenWasm = resolveContractWasm(repoRoot, 'payment-token', 'portico_payment_token');
   const splitWasm = resolveContractWasm(repoRoot, 'revenue-split', 'portico_revenue_split');
