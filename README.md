@@ -7,25 +7,29 @@ sequenceDiagram
     accTitle: portico runtime flow
     accDescr: Payer wallet, SDK, facilitator, RPC and contracts settle one gasless x402 payment and accrue stream.
     autonumber
+    box rgba(255,244,214,0.12) Payer side
     participant W as payer wallet
     participant S as SDK
+    end
+    box rgba(230,247,235,0.12) NEAR
     participant F as facilitator
     participant R as RPC
     participant T as payment-token
     participant V as revenue-split
+    end
     rect rgba(226,238,255,0.20)
     Note over W,V: PHASE 1 — Challenge with 402
-    S->>F: POST /quote
-    F-->>S: PAYMENT-REQUIRED
+    S->>+F: POST /quote
+    F-->>-S: PAYMENT-REQUIRED
     end
     rect rgba(230,247,235,0.20)
     Note over W,V: PHASE 2 — Sign payment
-    S->>W: sign one NEP-366 delegate
-    W-->>S: SignedDelegateAction with 1 yoctoNEAR
+    S->>+W: sign one NEP-366 delegate
+    W-->>-S: SignedDelegateAction with 1 yoctoNEAR
     end
     rect rgba(255,244,214,0.20)
     Note over W,V: PHASE 3 — Verify signature and nonce
-    S->>F: POST /verify with PAYMENT-SIGNATURE
+    S->>+F: POST /verify with PAYMENT-SIGNATURE
     par one pinned block hash
     F->>R: viewAccount, viewCode, viewAccessKey
     and
@@ -34,22 +38,22 @@ sequenceDiagram
     alt guard rejects
     F-->>S: error reason
     else guard accepts
-    F-->>S: verified payload hash
+    F-->>-S: verified payload hash
     end
     end
     rect rgba(243,232,255,0.20)
     Note over W,V: PHASE 4 — Relay to chain
-    S->>F: POST /settle
+    S->>+F: POST /settle
     F->>R: send delegate, relayer pays gas
     R->>T: ft_transfer_call into the split
-    T->>V: ft_on_transfer
+    T->>+V: ft_on_transfer
     V->>V: developer leg and platform leg
-    V-->>T: used amount, resolver refunds the rest
+    V-->>-T: used amount, resolver refunds the rest
     F->>R: txStatus FINAL
     alt inner SuccessValue
     F-->>S: PAYMENT-RESPONSE settled
     else timeout
-    F-->>S: settlement_pending plus outer hash
+    F-->>-S: settlement_pending plus outer hash
     end
     end
     rect rgba(255,232,232,0.20)
