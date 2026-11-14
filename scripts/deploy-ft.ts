@@ -12,7 +12,7 @@
  *   pnpm deploy:ft -- --skip-build
  */
 
-import 'dotenv/config';
+try { process.loadEnvFile(); } catch { /* .env optional */ }
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';

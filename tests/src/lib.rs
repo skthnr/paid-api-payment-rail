@@ -44,7 +44,7 @@ pub const TOTAL_SUPPLY: u128 = 1_000_000_000 * E18;
 /// FT balance handed to the buyer in [`Harness::setup`].
 pub const BUYER_FUNDING: u128 = 10_000_000 * E18;
 /// Registration deposit attached by [`Harness::register_tool`] (one NEAR).
-pub const REGISTRATION_DEPOSIT_YOCTO: u128 = 1_000_000_000_000_000_000_000_000;
+pub const REG_DEPOSIT: u128 = 1_000_000_000_000_000_000_000_000;
 /// Gas attached to `ft_transfer_call`; the FT reserves 30 Tgas for the receiver.
 pub const FT_CALL_GAS_TGAS: u64 = 150;
 
@@ -465,7 +465,7 @@ impl Harness {
             name,
             developer,
             price,
-            REGISTRATION_DEPOSIT_YOCTO,
+            REG_DEPOSIT,
         )
         .await
     }

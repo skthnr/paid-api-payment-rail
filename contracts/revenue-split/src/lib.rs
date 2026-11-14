@@ -246,13 +246,13 @@ impl Contract {
     /// Registers a tool and charges its storage growth to the caller.
     ///
     /// The attached deposit must cover `env::storage_byte_cost() * bytes
-    /// added` plus [`ledger::LEDGER_RESERVE_BYTES`] of storage, the reserve
+    /// added` plus [`ledger::LEDGER_RESERVE`] of storage, the reserve
     /// that funds the unfunded payment-path writes (ledger entries, first
     /// developer-balance touches, tool counters) a registered tool can
     /// trigger. Any excess is refunded to the predecessor. On top of the
-    /// reserve, the payment paths enforce [`storage::MAX_DEVELOPER_BALANCES`],
+    /// reserve, the payment paths enforce [`storage::MAX_DEV_BALS`],
     /// [`storage::MAX_STREAMS`] and the
-    /// [`storage::PAYMENT_STORAGE_HEADROOM_BYTES`] account-balance check, so a
+    /// [`storage::PAY_HEADROOM_BYTES`] account-balance check, so a
     /// sale that would outgrow the reserve refunds instead of aborting.
     #[payable]
     pub fn register_tool(&mut self, name: String, developer: AccountId, price: U128) {

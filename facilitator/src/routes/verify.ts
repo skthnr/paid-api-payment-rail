@@ -11,7 +11,7 @@ import { Router, type NextFunction, type Request, type Response } from 'express'
 import type { DelegateGate, VerifiedPayment } from '../services/delegateGate.js';
 import { PaymentHeaderError } from '../services/headers.js';
 import type { VerificationResponse } from '../types.js';
-import { readPaymentPayload } from './paymentRequest.js';
+import { readPaymentPayload } from './payment.js';
 
 export interface VerifyRouterOptions {
   gate: DelegateGate;

@@ -56,7 +56,7 @@
  * unavailable-stack blockers and band failures.
  */
 
-import 'dotenv/config';
+try { process.loadEnvFile(); } catch { /* .env optional */ }
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';

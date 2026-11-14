@@ -25,7 +25,7 @@ pub const MAX_LEDGER_ENTRIES: u64 = 100_000;
 /// `storage_byte_cost * (storage_usage + entry bytes + headroom)` before a new
 /// payment-path key, so a sale that outgrows the reserve refunds instead of
 /// aborting.
-pub const LEDGER_RESERVE_BYTES: u64 = 8_192;
+pub const LEDGER_RESERVE: u64 = 8_192;
 
 /// Largest page `get_ledger` returns, regardless of the requested limit.
 pub const MAX_LEDGER_PAGE: u32 = 100;

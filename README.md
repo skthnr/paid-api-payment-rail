@@ -17,7 +17,7 @@ portico is a NEAR implementation of the x402 v2 `exact` payment scheme for paid 
 
 ## Origin and license disclosure
 
-This repository is a NEAR port of [Sperax/x402-stablecoin](https://github.com/Sperax/x402-stablecoin). The origin root `LICENSE` is the Apache License 2.0 and governs the repository as a whole. some origin files carry MIT SPDX headers and the origin package metadata says MIT. That conflict is resolved in favour of the root license, and `NOTICE` records the attribution. The Solidity contracts are not copied: the NEAR contracts are an independent Rust reimplementation of the documented behaviour. `near-sdk-contract-tools` is dual-licensed `GPL-3.0 OR Apache-2.0`. this project elects Apache-2.0.
+This repository is a NEAR port of [Sperax/x402-stablecoin](https://github.com/Sperax/x402-stablecoin). The origin root `LICENSE` is the Apache License 2.0 and governs the repository as a whole. Some origin files carry MIT SPDX headers and the origin package metadata says MIT. That conflict is resolved in favour of the root license, and `NOTICE` records the attribution. The Solidity contracts are not copied: the NEAR contracts are an independent Rust reimplementation of the documented behaviour. `near-sdk-contract-tools` is dual-licensed `GPL-3.0 OR Apache-2.0`. This project elects Apache-2.0.
 
 The revenue-split path uses `ft_transfer_call`, a documented extension of the official NEAR `exact` scheme (which allows a single `ft_transfer`). The extension keeps `args.receiver_id == accepted.payTo` by pointing `payTo` at the split contract. the `msg` dispatcher binds the quoted tool to its registered developer. Every other verification rule is unchanged.
 
@@ -244,12 +244,12 @@ The paywall surface (`PORTICO_TOKEN_CONTRACT`, `PORTICO_SPLIT_CONTRACT`, `PAYWAL
 ## Limits and scope
 
 - **Testnet only.** The defaults, env surface and docs target `near:testnet`. There are no mainnet deployment scripts, no mainnet RPC defaults and no real funds. Do not point `PORTICO_NETWORK` or the RPC at mainnet.
-- **The relayer prepays.** The buyer account needs an initialized account and a full-access key, but no liquid NEAR: the relayer pays gas and the 1-yocto attached deposit. On a failed inner transfer the unused FT amount is refunded to the transaction signer (the relayer), which caps the sponsored exposure per sale at gas plus 1 yocto. keep that exposure deliberately small.
+- **The relayer prepays.** The buyer account needs an initialized account and a full-access key, but no liquid NEAR: the relayer pays gas and the 1-yocto attached deposit. On a failed inner transfer the unused FT amount is refunded to the transaction signer (the relayer), which caps the sponsored exposure per sale at gas plus 1 yocto. Keep that exposure deliberately small.
 - **Asynchronous finality.** `/settle` is finality-bound and can return HTTP 202 `settlement_pending` with the outer transaction hash. Poll `/payments/:txHash` and never re-sign the same delegate until the outcome is known. the duplicate cache refuses a second settlement.
 - **Storage headroom caps.** Payment-path writes are unfunded because `ft_on_transfer` receives no NEAR. The contract caps developer balances at 10,000 keys, streams at 10,000, and ledger entries at 100,000, and requires `storage_byte_cost * (storage_usage + entry_bytes + 32768)` of liquid balance before adding a key. A sale that would exceed a cap or the headroom returns the whole amount unused, so the FT refunds it instead of aborting.
 - **No custody.** The facilitator holds no buyer funds and no user balances. The contract holds stream escrow and withdrawable developer balances only.
 - **Submission is human-only.** This repository contains no publishing, push or submission command: the application payload is reviewed and submitted by a human, and posting about it is human-only. There is no mainnet deployment and no custody of real assets.
-- **Streams are payment schedules, not investments.** They accrue a prepaid service budget per block. the repository makes no yield, APY or investment claim.
+- **Streams are payment schedules, not investments.** They accrue a prepaid service budget per block. The repository makes no yield, APY or investment claim.
 
 ## Tests
 
@@ -262,12 +262,12 @@ pnpm typecheck
 pnpm lint
 ```
 
-The near-workspaces suite needs Linux x86-64/ARM64 or macOS ARM64 (WSL2 on Windows). its helpers deploy the `cargo near build` artifacts from `contracts/<crate>/target/near/`. The repository can be edited on Windows. run the WASM builds and the sandbox suite on Linux/macOS.
+The near-workspaces suite needs Linux x86-64/ARM64 or macOS ARM64 (WSL2 on Windows). its helpers deploy the `cargo near build` artifacts from `contracts/<crate>/target/near/`. The repository can be edited on Windows. Run the WASM builds and the sandbox suite on Linux/macOS.
 
 ## Requirements
 
-- Node.js >= 22.22.2 and pnpm >= 10.4.1 (the `near-api-js` 7.5.3 engine floor)
-- Rust 1.99.1 pinned by `rust-toolchain.toml` (MSRV 1.95) with the `wasm32-unknown-unknown` target
+- Node.js >= 26.13.1 and pnpm >= 12.18.0 (the `near-api-js` 7.5.3 engine floor)
+- Rust 1.100.0 pinned by `rust-toolchain.toml` (MSRV 1.95) with the `wasm32-unknown-unknown` target
 - `cargo-near` 0.23.0 and `near-cli-rs` 0.31.1 for deploy commands
 - `near-sandbox` for the zero-funds sandbox quickstart
 - A NEAR testnet account with the `near` CLI keychain configured for testnet runs

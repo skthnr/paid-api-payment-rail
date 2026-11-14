@@ -6,7 +6,7 @@
  * decimals setting stops the process instead of degrading the payment path.
  */
 
-import 'dotenv/config';
+try { process.loadEnvFile(); } catch { /* .env optional */ }
 
 import { FINALITY_LAG_BLOCKS } from './constants.js';
 

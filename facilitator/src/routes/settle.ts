@@ -29,7 +29,7 @@ import {
 } from '../services/near.js';
 import { inspectInnerTransfer } from '../services/receipts.js';
 import type { SettlementResponse } from '../types.js';
-import { readPaymentPayload } from './paymentRequest.js';
+import { readPaymentPayload } from './payment.js';
 
 export interface SettlementChain extends NearReader {
   relay(signedDelegate: SignedDelegate, onSigned?: (txHash: string) => void): Promise<RelayResult>;

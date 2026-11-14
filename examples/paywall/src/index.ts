@@ -16,7 +16,7 @@
  * preflight without payment.
  */
 
-import 'dotenv/config';
+try { process.loadEnvFile(); } catch { /* .env optional */ }
 import { pathToFileURL } from 'node:url';
 import express, {
   type Express,

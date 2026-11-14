@@ -4,7 +4,7 @@ use near_sdk::json_types::U128;
 use near_sdk::store::LookupMap;
 use near_sdk::{near, AccountId};
 
-use crate::ledger::LEDGER_RESERVE_BYTES;
+use crate::ledger::LEDGER_RESERVE;
 
 /// Maximum accepted tool-name length, in bytes.
 pub const MAX_TOOL_NAME_BYTES: usize = 64;
@@ -49,7 +49,7 @@ pub fn validate_price(price: u128) -> Result<(), &'static str> {
 /// Deposit a `register_tool` call must attach.
 ///
 /// It covers the bytes the registration itself adds plus
-/// [`LEDGER_RESERVE_BYTES`], the fixed reserve that funds the unfunded
+/// [`LEDGER_RESERVE`], the fixed reserve that funds the unfunded
 /// payment-path writes a registered tool can trigger.
 ///
 /// # Panics
@@ -58,7 +58,7 @@ pub fn validate_price(price: u128) -> Result<(), &'static str> {
 /// costs and byte counts.
 pub fn registration_deposit(storage_growth_bytes: u64, byte_cost: u128) -> u128 {
     let total_bytes = u128::from(storage_growth_bytes)
-        .checked_add(u128::from(LEDGER_RESERVE_BYTES))
+        .checked_add(u128::from(LEDGER_RESERVE))
         .expect("registration deposit overflow");
     total_bytes
         .checked_mul(byte_cost)

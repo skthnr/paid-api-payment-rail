@@ -44,7 +44,7 @@
  * failure; there is no synthetic success path.
  */
 
-import 'dotenv/config';
+try { process.loadEnvFile(); } catch { /* .env optional */ }
 
 import { spawn, spawnSync, type ChildProcess } from 'node:child_process';
 import {

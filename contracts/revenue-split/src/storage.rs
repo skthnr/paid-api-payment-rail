@@ -11,7 +11,7 @@
 //!
 //! Those writes are bounded in two independent ways:
 //!
-//! 1. **Collection caps.** [`MAX_DEVELOPER_BALANCES`] and [`MAX_STREAMS`] stop
+//! 1. **Collection caps.** [`MAX_DEV_BALS`] and [`MAX_STREAMS`] stop
 //!    new keys once the cap is reached, while writes to an existing key still
 //!    succeed: a repeat credit to a known payee, a `fund_stream` on a known
 //!    stream, or a claim never grows the key set. The ledger has its own cap
@@ -19,7 +19,7 @@
 //! 2. **Balance headroom.** Before a payment-path write that can add a key,
 //!    `Contract::ensure_payment_storage_headroom` requires
 //!    `account_balance >= storage_byte_cost * (storage_usage + extra_bytes +
-//!    PAYMENT_STORAGE_HEADROOM_BYTES)`. The comparison uses saturating
+//!    PAY_HEADROOM_BYTES)`. The comparison uses saturating
 //!    arithmetic on `u128`, so neither a huge `storage_usage` nor an absurd
 //!    `extra_bytes` can wrap. The fixed headroom keeps a margin above the
 //!    single-write estimate so the contract does not run exactly to the edge
@@ -54,7 +54,7 @@ use crate::Contract;
 ///
 /// Writes that update an existing balance key are still allowed at the cap, so
 /// recovered revenue, stream refunds and repeated platform fees keep working.
-pub const MAX_DEVELOPER_BALANCES: u64 = 10_000;
+pub const MAX_DEV_BALS: u64 = 10_000;
 
 /// Largest number of streams the contract stores.
 ///
@@ -64,14 +64,14 @@ pub const MAX_STREAMS: u64 = 10_000;
 
 /// Fixed byte margin kept above `storage_usage + extra_bytes` by the headroom
 /// check.
-pub const PAYMENT_STORAGE_HEADROOM_BYTES: u64 = 32_768;
+pub const PAY_HEADROOM_BYTES: u64 = 32_768;
 
 /// Conservative storage cost of one new `developer_balances` entry.
-pub const DEVELOPER_BALANCE_STORAGE_BYTES: u64 = 192;
+pub const DEV_BAL_BYTES: u64 = 192;
 
 /// Conservative storage cost of one new stream: the `streams` value, the
 /// `streams_by_recipient` entry and the stream ledger entry.
-pub const STREAM_STORAGE_BYTES: u64 = 1_024;
+pub const STREAM_BYTES: u64 = 1_024;
 
 /// Storage stake required to hold `storage_usage + extra_bytes`.
 ///
@@ -82,7 +82,7 @@ pub fn payment_storage_requirement(storage_usage: u64, extra_bytes: u64, byte_co
 
 impl Contract {
     /// Returns `true` when the contract balance covers the bytes this payment
-    /// write adds plus [`PAYMENT_STORAGE_HEADROOM_BYTES`].
+    /// write adds plus [`PAY_HEADROOM_BYTES`].
     ///
     /// `extra_bytes` is the conservative cost of the keys the caller is about
     /// to create; `0` always passes because existing-key writes never grow the
@@ -91,7 +91,7 @@ impl Contract {
         if extra_bytes == 0 {
             return true;
         }
-        let reserved = extra_bytes.saturating_add(PAYMENT_STORAGE_HEADROOM_BYTES);
+        let reserved = extra_bytes.saturating_add(PAY_HEADROOM_BYTES);
         let required = payment_storage_requirement(
             env::storage_usage(),
             reserved,
@@ -121,11 +121,11 @@ impl Contract {
         if new_keys == 0 {
             return true;
         }
-        if self.developer_balances_count.saturating_add(new_keys) > MAX_DEVELOPER_BALANCES {
+        if self.developer_balances_count.saturating_add(new_keys) > MAX_DEV_BALS {
             return false;
         }
         self.ensure_payment_storage_headroom(
-            DEVELOPER_BALANCE_STORAGE_BYTES.saturating_mul(new_keys),
+            DEV_BAL_BYTES.saturating_mul(new_keys),
         )
     }
 
@@ -137,6 +137,6 @@ impl Contract {
         if self.next_stream_id > MAX_STREAMS {
             return false;
         }
-        self.ensure_payment_storage_headroom(STREAM_STORAGE_BYTES)
+        self.ensure_payment_storage_headroom(STREAM_BYTES)
     }
 }

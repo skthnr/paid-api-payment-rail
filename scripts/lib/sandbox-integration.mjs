@@ -211,7 +211,6 @@ async function setup() {
 const t = (name, fn) => test(name, { timeout: 180000 }, fn);
 
 describe('portico native sandbox integration (23 scenarios)', { concurrency: false }, () => {
-  // --------------------------- split.rs (12) ---------------------------
   t('split_pays_developer_and_platform_from_one_transfer', async () => {
     const h = await setup();
     const buyerStart = await h.ftBalance(h.buyer.accountId);
@@ -475,7 +474,6 @@ describe('portico native sandbox integration (23 scenarios)', { concurrency: fal
     assert.equal((await h.toolInfo('image-gen')).total_calls, 1);
   });
 
-  // --------------------------- registry.rs (8) ---------------------------
   t('registry_registration_and_views', async () => {
     const h = await setup();
     const price = 2_000_000n;
@@ -596,7 +594,6 @@ describe('portico native sandbox integration (23 scenarios)', { concurrency: fal
     eqU(tool.total_revenue, 0n);
   });
 
-  // --------------------------- stream.rs (3) ---------------------------
   t('stream_close_before_cliff_refunds_deposit', async () => {
     const h = await setup();
     const deposit = 10n * E18;

@@ -15,12 +15,12 @@ use near_sdk::{
 };
 
 use crate::ft_receiver::{parse_payment_msg, PaymentMsg};
-use crate::ledger::{LedgerAction, LEDGER_RESERVE_BYTES, MAX_LEDGER_ENTRIES};
+use crate::ledger::{LedgerAction, LEDGER_RESERVE, MAX_LEDGER_ENTRIES};
 use crate::registry::registration_deposit;
 use crate::split::{split_amount, BPS_DENOM};
 use crate::storage::{
-    payment_storage_requirement, DEVELOPER_BALANCE_STORAGE_BYTES, MAX_DEVELOPER_BALANCES,
-    MAX_STREAMS, PAYMENT_STORAGE_HEADROOM_BYTES, STREAM_STORAGE_BYTES,
+    payment_storage_requirement, DEV_BAL_BYTES, MAX_DEV_BALS,
+    MAX_STREAMS, PAY_HEADROOM_BYTES, STREAM_BYTES,
 };
 use crate::stream::{StreamStatus, MAX_CLIFF_BLOCKS, MIN_CLIFF_BLOCKS};
 use crate::Contract;
@@ -244,7 +244,6 @@ fn single_event() -> serde_json::Value {
     event
 }
 
-// ---------------------------------------------------------------- vectors ---
 
 #[test]
 fn vectors_single_payment_splits_eighty_twenty() {
@@ -404,7 +403,6 @@ fn split_fuzz_matches_basis_point_math() {
     }
 }
 
-// ------------------------------------------------------------------ split ---
 
 
 #[test]
@@ -497,18 +495,17 @@ fn split_msg_actions_parse_with_the_expected_shape() {
     assert!(parse_payment_msg("not json").is_err());
 }
 
-// --------------------------------------------------------------- registry ---
 
 #[test]
 fn registry_registration_deposit_includes_the_ledger_reserve() {
     let byte_cost = 10_000_000_000_000_000_000u128;
     assert_eq!(
         registration_deposit(1_000, byte_cost),
-        (1_000 + u128::from(LEDGER_RESERVE_BYTES)) * byte_cost
+        (1_000 + u128::from(LEDGER_RESERVE)) * byte_cost
     );
     assert_eq!(
         registration_deposit(0, byte_cost),
-        u128::from(LEDGER_RESERVE_BYTES) * byte_cost
+        u128::from(LEDGER_RESERVE) * byte_cost
     );
 }
 
@@ -532,7 +529,7 @@ fn registry_registration_refunds_everything_above_growth_and_reserve() {
     let (refundee, refunded) = &transfers[0];
     assert_eq!(*refundee, fixture.owner);
     let reserve_cost =
-        u128::from(LEDGER_RESERVE_BYTES) * env::storage_byte_cost().as_yoctonear();
+        u128::from(LEDGER_RESERVE) * env::storage_byte_cost().as_yoctonear();
     assert!(*refunded > 0);
     assert!(*refunded <= ONE_NEAR - reserve_cost);
 }
@@ -571,7 +568,6 @@ fn registry_force_deactivate_is_owner_only() {
         .force_deactivate_tool("web-search".to_string());
 }
 
-// ----------------------------------------------------------------- stream ---
 
 #[test]
 fn stream_open_claim_and_close_settle_exactly_once() {
@@ -903,7 +899,6 @@ fn stream_cliff_bounds_are_enforced() {
     assert_eq!(fixture.contract.get_totals().open_streams, 0);
 }
 
-// ------------------------------------------------------------------ ledger ---
 
 #[test]
 fn ledger_appends_paginates_and_caps() {
@@ -939,7 +934,6 @@ fn ledger_appends_paginates_and_caps() {
     ));
 }
 
-// ------------------------------------------------------------- payout rail ---
 
 #[test]
 fn payout_rail_creates_the_account_transfer_and_key() {
@@ -985,7 +979,6 @@ fn payout_rail_rejects_nested_account_names() {
         .create_developer_account("nested.dev1".to_string(), public_key);
 }
 
-// -------------------------------------------------------- storage guards ---
 
 #[test]
 fn storage_requirement_math_is_saturating() {
@@ -995,16 +988,16 @@ fn storage_requirement_math_is_saturating() {
         payment_storage_requirement(u64::MAX, u64::MAX, u128::MAX),
         u128::MAX
     );
-    assert!(PAYMENT_STORAGE_HEADROOM_BYTES > STREAM_STORAGE_BYTES);
-    assert!(STREAM_STORAGE_BYTES > DEVELOPER_BALANCE_STORAGE_BYTES);
+    assert!(PAY_HEADROOM_BYTES > STREAM_BYTES);
+    assert!(STREAM_BYTES > DEV_BAL_BYTES);
     assert!(MAX_STREAMS > 0);
-    assert!(MAX_DEVELOPER_BALANCES > 0);
+    assert!(MAX_DEV_BALS > 0);
 }
 
 #[test]
 fn storage_cap_refunds_a_new_developer_balance() {
     let mut fixture = new_fixture(2_000);
-    fixture.contract.developer_balances_count = MAX_DEVELOPER_BALANCES;
+    fixture.contract.developer_balances_count = MAX_DEV_BALS;
     let msg = serde_json::json!({"action": "credit_developer", "developer": DEV2}).to_string();
     assert_eq!(expect_value(pay(&mut fixture, 100, &msg, 1_000)), U128(100));
     assert_eq!(fixture.contract.total_developer_balance, 0);
@@ -1017,12 +1010,12 @@ fn storage_cap_refunds_a_new_developer_balance() {
 fn storage_cap_still_credits_an_existing_developer_balance() {
     let mut fixture = new_fixture(2_000);
     fixture.contract.credit_developer_balance(&id(DEV1), 100);
-    fixture.contract.developer_balances_count = MAX_DEVELOPER_BALANCES;
+    fixture.contract.developer_balances_count = MAX_DEV_BALS;
 
     let msg = serde_json::json!({"action": "credit_developer", "developer": DEV1}).to_string();
     assert_eq!(expect_value(pay(&mut fixture, 50, &msg, 1_000)), U128(0));
     assert_eq!(balance(&fixture.contract, &id(DEV1)), 150);
-    assert_eq!(fixture.contract.developer_balances_count, MAX_DEVELOPER_BALANCES);
+    assert_eq!(fixture.contract.developer_balances_count, MAX_DEV_BALS);
 
     let blocked = serde_json::json!({"action": "credit_developer", "developer": DEV2}).to_string();
     assert_eq!(expect_value(pay(&mut fixture, 50, &blocked, 1_000)), U128(50));
@@ -1115,7 +1108,6 @@ fn storage_headroom_refunds_a_new_stream() {
     assert_eq!(fixture.contract.next_stream_id, 1);
 }
 
-// ------------------------------------------------------------- W3 views ---
 
 #[test]
 fn views_report_balances_and_recipient_streams() {
@@ -1160,7 +1152,6 @@ fn views_report_balances_and_recipient_streams() {
     assert_eq!(fixture.contract.get_stream_deposit(3), U128(25_000));
 }
 
-// ------------------------------------------------------ W3 event surface ---
 
 #[test]
 fn stream_rate_update_emits_one_event() {
