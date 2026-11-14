@@ -1,5 +1,7 @@
 # portico
 
+portico implements the x402 v2 `exact` payment scheme on NEAR for paid APIs. A buyer signs a NEP-366 `SignedDelegateAction` with one NEP-141 `ft_transfer_call` into a revenue-split contract. A relayer submits the delegate and pays gas plus 1 yoctoNEAR. The contract splits each sale between the developer and the platform, then appends it to a public ledger. Subscription revenue streams accrue per block for permissionless claims.
+
 License: Apache-2.0 (see `LICENSE`, `NOTICE`, and `ATTRIBUTION.md`). Tracks: `realworld`, `business`. Baseline: tag `pre-hackathon` at `9f6b73f`; diff `git diff pre-hackathon..hackathon-submission`. Q-015 (second project on the same email): **eidolon** (agent village economy, tracks `games`, `agents`).
 
 ```mermaid
@@ -76,6 +78,8 @@ sequenceDiagram
 
 ## Primitives
 
+- Network: `near:testnet` (CAIP-2), x402 version 2, scheme `exact`; testnet accounts `portico.testnet`, `split.portico.testnet`, `token.portico.testnet`, `relayer.portico.testnet`
+- Payment FT: self-deployed NEP-141, **18 decimals**, raw-unit amounts — portico's **own payment-token, not a third-party stablecoin**; no USDC or other issuer token is used anywhere
 - **NEP-141 / NEP-145** — `portico-payment-token` is the payment FT with 18 decimals and raw-unit amounts; `portico-revenue-split` receives it via one approval-free `ft_transfer_call` per sale, with standard FT storage management (`storage_deposit`, `storage_withdraw`, `storage_unregister`, `storage_balance_bounds`, `storage_balance_of`).
 - **NEP-366** — `SignedDelegateAction` relay: the buyer signs, the relayer submits. The nonce is bounded by `block_height * 1_000_000`; `maxTimeoutSeconds` maps to `blockHeightTtl` at one second per block.
 - **NEP-297** — `EVENT_JSON` events for sales, splits, ledger entries, and streams.
