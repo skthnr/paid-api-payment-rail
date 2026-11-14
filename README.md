@@ -76,28 +76,23 @@ sequenceDiagram
     end
 ```
 
-- Network: `near:testnet` (CAIP-2), x402 version 2, scheme `exact`
-- Testnet accounts: `portico.testnet`, `split.portico.testnet`, `token.portico.testnet`, `relayer.portico.testnet`
+- Network: `near:testnet` (CAIP-2), x402 version 2, scheme `exact`; testnet accounts `portico.testnet`, `split.portico.testnet`, `token.portico.testnet`, `relayer.portico.testnet`
 - Payment FT: self-deployed NEP-141, **18 decimals**, raw-unit amounts — portico's **own payment-token, not a third-party stablecoin**; no USDC or other issuer token is used anywhere
-- License: Apache-2.0 (see `LICENSE` and `NOTICE`)
 
 ## Primitives
 
-- **NEP-141** — `portico-payment-token` is the payment FT with 18 decimals and raw-unit amounts. `portico-revenue-split` receives it. Each sale uses one `ft_transfer_call` with no approval.
-- **NEP-145** — FT storage management: `storage_deposit`, `storage_withdraw`, `storage_unregister`, `storage_balance_bounds`, `storage_balance_of`.
-- **NEP-366** — `SignedDelegateAction` relay: the buyer signs and the relayer submits. The nonce is bounded by `block_height * 1_000_000`. The TTL uses `maxTimeoutSeconds`, mapped to `blockHeightTtl` at one second per block.
-- **x402 v2 `exact`** — `PAYMENT-REQUIRED`, `PAYMENT-SIGNATURE`, and `PAYMENT-RESPONSE` are base64 headers over CAIP-2 `near:testnet`. `GET /supported` advertises scheme/network pairs and relayer `signers`. Verification follows all scheme MUSTs. The revenue-split path changes one rule. It delegates `ft_transfer_call` with a `msg` dispatcher instead of `ft_transfer`.
+- **NEP-141 / NEP-145** — `portico-payment-token` is the payment FT with 18 decimals and raw-unit amounts; `portico-revenue-split` receives it via one approval-free `ft_transfer_call` per sale, with standard FT storage management (`storage_deposit`, `storage_withdraw`, `storage_unregister`, `storage_balance_bounds`, `storage_balance_of`).
+- **NEP-366** — `SignedDelegateAction` relay: the buyer signs, the relayer submits. The nonce is bounded by `block_height * 1_000_000`; `maxTimeoutSeconds` maps to `blockHeightTtl` at one second per block.
+- **x402 v2 `exact`** — `PAYMENT-REQUIRED`, `PAYMENT-SIGNATURE`, and `PAYMENT-RESPONSE` are base64 headers over CAIP-2 `near:testnet`; `GET /supported` advertises scheme/network pairs. Verification follows all scheme MUSTs except one documented extension: it delegates `ft_transfer_call` with a `msg` dispatcher instead of `ft_transfer`.
 - **NEP-297** — `EVENT_JSON` events for sales, splits, ledger entries, and streams.
 
 ## Origin and license disclosure
 
-This repository ports [Sperax/x402-stablecoin](https://github.com/Sperax/x402-stablecoin) to NEAR. The root `LICENSE` is Apache License 2.0 and governs the repository. Some origin files carry MIT SPDX headers and MIT metadata; that conflict resolves to the root license. `NOTICE` records attribution and `ATTRIBUTION.md` records the upstream import. The Solidity contracts are not copied. The NEAR contracts are an independent Rust implementation. `near-sdk-contract-tools` is dual-licensed `GPL-3.0 OR Apache-2.0`. This project elects Apache-2.0.
-
-The revenue-split path uses `ft_transfer_call`, a documented extension of the NEAR `exact` scheme. That scheme allows `ft_transfer`. The path keeps `args.receiver_id == accepted.payTo` by setting `payTo` to the split contract. The `msg` dispatcher binds the quoted tool to its registered developer. All other rules stay unchanged.
+This repository ports [Sperax/x402-stablecoin](https://github.com/Sperax/x402-stablecoin) to NEAR. The root `LICENSE` is Apache License 2.0 and governs the repository; some origin files carry MIT SPDX headers and MIT metadata, and that conflict resolves to the root license. `NOTICE` records attribution and `ATTRIBUTION.md` records the upstream import. The Solidity contracts are not copied — the NEAR contracts are an independent Rust implementation; `near-sdk-contract-tools` is dual-licensed `GPL-3.0 OR Apache-2.0` and this project elects Apache-2.0. The revenue-split path uses `ft_transfer_call`, a documented extension of the NEAR `exact` scheme (which allows `ft_transfer`): it keeps `args.receiver_id == accepted.payTo` by setting `payTo` to the split contract, and the `msg` dispatcher binds the quoted tool to its registered developer. All other rules stay unchanged.
 
 ## Architecture and layout
 
-The contract owns settlement and accounting. The facilitator holds no funds. It verifies a signed delegate against `PaymentRequired` and relays once. It then requires an inner `SuccessValue` receipt in a FINAL outcome.
+The contract owns settlement and accounting. The facilitator holds no funds: it verifies a signed delegate against `PaymentRequired`, relays once, and requires an inner `SuccessValue` receipt in a FINAL outcome.
 
 ```
 contracts/
@@ -117,11 +112,9 @@ tests/              near-workspaces Rust integration tests
 
 ## Measured performance
 
-**Testnet (2026-11-12): 12.567 TGas and 11.03 s p50 / 11.82 s p95 per gasless sale→80/20 payout.** The run used N=20. All inner FT receipts returned `SuccessValue`. Each loop has 12 receipts. Total burnt was 0.022456027285 NEAR. The delegated gas cap stays 100 TGas, the `exact` cap. The split signs one `ft_transfer_call` with `teraToGas(100)`. `s per gasless sale` measures wall time from quote request to FINAL. That run used `split.portico.testnet`, `token.portico.testnet`, relayer `portico.testnet`, buyer `nearhack-major.testnet`, RPC `https://test.rpc.fastnear.com`, and facilitator `http://127.0.0.1:3002`.
+**Testnet (2026-11-12): 12.567 TGas and 11.03 s p50 / 11.82 s p95 per gasless sale→80/20 payout.** The run used N=20, all inner FT receipts returned `SuccessValue`, each loop has 12 receipts, and total burnt was 0.022456027285 NEAR. The delegated gas cap stays 100 TGas, the `exact` cap; the split signs one `ft_transfer_call` with `teraToGas(100)`; `s per gasless sale` measures wall time from quote request to FINAL. Accounts: `split.portico.testnet`, `token.portico.testnet`, relayer `portico.testnet`, buyer `nearhack-major.testnet`, RPC `https://test.rpc.fastnear.com`, facilitator `http://127.0.0.1:3002`. Sandbox row (2026-11-12, `near-sandbox` 2.14.0 — **not comparable**): N=20, p50 12.195 TGas, p50 1.385 s, all inner FT receipts `SuccessValue`; local block production and polling dominate that row.
 
-Sandbox row (2026-11-12, `near-sandbox` 2.14.0 — **not comparable**): N=20, p50 12.195 TGas, p50 1.385 s, all inner FT receipts `SuccessValue`. Local block production and polling dominate that row.
-
-`pnpm bench` runs N=20 sale → split → payout loops and reports p50 and p95. TGas per loop is the sum of `gas_burnt` over `receipts_outcome`, divided by 1e12; per-loop latency runs from quote request to FINAL; `tokens_burnt` is divided by 1e24 and reported as NEAR. Each loop asserts the inner FT receipt is `SuccessValue`. Gas enforces a sanity band (7–102 TGas). Latency has no floor. The run fails closed on an unavailable stack or band violation. Output ends with `BENCH p50_tgas=… p95_tgas=…` and `HEADLINE:`. `--json` emits the same values. Transcripts and verdicts write to `PORTICO_BENCH_TRANSCRIPT` (`../portico-bench-transcript.txt` by default), and p50, p95, min, and max are recorded with the command. Run from the repo root against a funded stack and facilitator:
+`pnpm bench` runs N=20 sale → split → payout loops and reports p50 and p95: TGas per loop is the sum of `gas_burnt` over `receipts_outcome` divided by 1e12, per-loop latency runs from quote request to FINAL, and `tokens_burnt` is divided by 1e24 and reported as NEAR. Each loop asserts the inner FT receipt is `SuccessValue`; gas enforces a sanity band (7–102 TGas); latency has no floor; the run fails closed on an unavailable stack or band violation. Output ends with `BENCH p50_tgas=… p95_tgas=…` and `HEADLINE:`; `--json` emits the same values; transcripts and verdicts write to `PORTICO_BENCH_TRANSCRIPT` (`../portico-bench-transcript.txt` by default) with p50, p95, min, and max recorded (`PORTICO_BENCH_BASE_URL` overrides `FACILITATOR_URL`, `PORTICO_BENCH_LOOPS` the loop count, `PORTICO_BENCH_LOOP_TIMEOUT_MS` the per-loop FINAL deadline). Run from the repo root against a funded stack and facilitator:
 
 ```bash
 pnpm bench           # root script: tsx scripts/bench.ts, human summary
@@ -144,7 +137,7 @@ pnpm install
 pnpm sandbox:demo             # root script: tsx scripts/sandbox-demo.ts
 ```
 
-`pnpm sandbox:demo` runs `scripts/sandbox-demo.ts` with no funded account, testnet account, or API key. It finds `near-sandbox` with the glob `target/debug/build/near-sandbox-*/out/.near/near-sandbox-*/near-sandbox`. Set `NEAR_SANDBOX_BIN` to override it. It starts an ephemeral node. It deploys `contracts/revenue-split/target/near/portico_revenue_split.wasm` and `contracts/payment-token/target/near/portico_payment_token.wasm`. It creates demo accounts, funds non-buyer accounts, registers `web-search`, and starts the facilitator (`:3002`) and paywall (`:3003`). It then runs `scripts/demo.ts`: `POST /quote` returns 402 with `PAYMENT-REQUIRED`; the SDK signs one NEP-366 delegate for `ft_transfer_call` with 1 yoctoNEAR while the buyer holds FT units and **zero liquid NEAR**; the facilitator verifies and relays the delegate to FINAL; the split pays the developer 80% and credits the platform 20%; `get_ledger` returns the sale, then a stream opens, blocks fast-forward, and the recipient claims. `scripts/demo.ts` asserts zero buyer NEAR and completion inside `PORTICO_DEMO_MAX_MS` (default 120000 ms). Output writes to `PORTICO_DEMO_TRANSCRIPT` (default `<repo>/../portico-demo-transcript.txt`).
+`pnpm sandbox:demo` runs `scripts/sandbox-demo.ts` with no funded account, testnet account, or API key. It finds `near-sandbox` with the glob `target/debug/build/near-sandbox-*/out/.near/near-sandbox-*/near-sandbox` (override with `NEAR_SANDBOX_BIN`), starts an ephemeral node, deploys `contracts/revenue-split/target/near/portico_revenue_split.wasm` and `contracts/payment-token/target/near/portico_payment_token.wasm`, creates demo accounts, funds non-buyer accounts, registers `web-search`, and starts the facilitator (`:3002`) and paywall (`:3003`). It then runs `scripts/demo.ts`: `POST /quote` returns 402 with `PAYMENT-REQUIRED`; the SDK signs one NEP-366 delegate for `ft_transfer_call` with 1 yoctoNEAR while the buyer holds FT units and **zero liquid NEAR**; the facilitator verifies and relays the delegate to FINAL; the split pays the developer 80% and credits the platform 20%; `get_ledger` returns the sale, then a stream opens, blocks fast-forward, and the recipient claims. `scripts/demo.ts` asserts zero buyer NEAR and completion inside `PORTICO_DEMO_MAX_MS` (default 120000 ms). Output writes to `PORTICO_DEMO_TRANSCRIPT` (default `<repo>/../portico-demo-transcript.txt`).
 
 Recorded smoke run (no funds, no keys): `pnpm test` (vitest) on this tree ended with:
 
@@ -155,9 +148,7 @@ Recorded smoke run (no funds, no keys): `pnpm test` (vitest) on this tree ended 
    Duration  10.84s (transform 50%, import 47%, tests 3%, worker 1%)
 ```
 
-Covers the SDK x402 header/handler/meta-tx/revenue-split suites, the MCP server and tools, and the paywall example (61 tests across 7 files).
-
-Overrides: `PORTICO_SANDBOX_RPC_URL` reuses a running node (with `PORTICO_SANDBOX_HOME`, or `PORTICO_SANDBOX_ROOT_ACCOUNT` plus `PORTICO_SANDBOX_ROOT_KEY`). `PORTICO_SANDBOX_KEEP_HOME=1` retains the temporary home. Ports 3002 and 3003 must be free (`PORTICO_FACILITATOR_PORT` and `PAYWALL_PORT` override them). `near-sandbox` supports Linux x86_64/ARM64 and macOS ARM64 only. On Windows, run inside WSL2.
+Covers the SDK x402 header/handler/meta-tx/revenue-split suites, the MCP server and tools, and the paywall example (61 tests across 7 files). Overrides: `PORTICO_SANDBOX_RPC_URL` reuses a running node (with `PORTICO_SANDBOX_HOME`, or `PORTICO_SANDBOX_ROOT_ACCOUNT` plus `PORTICO_SANDBOX_ROOT_KEY`); `PORTICO_SANDBOX_KEEP_HOME=1` retains the temporary home; ports 3002 and 3003 must be free (`PORTICO_FACILITATOR_PORT` and `PAYWALL_PORT` override them); `near-sandbox` supports Linux x86_64/ARM64 and macOS ARM64 only (run inside WSL2 on Windows).
 
 ## Testnet quickstart
 
@@ -180,7 +171,7 @@ near contract call-function as-transaction split.portico.testnet register_tool \
   sign-as portico.testnet network-config testnet sign-with-keychain send
 ```
 
-Fund `split.portico.testnet` with 1 NEAR for payment-path storage headroom. `register_tool` refunds excess deposit above storage growth plus the 8,192-byte reserve. `register_tool`'s `price` is `1000000` raw units (Step 8), not the quote amount. `POST /quote` for `web-search` returns `100000000000000`. `pay_tool` charges the registered price and refunds the difference, so net spend is `1000000`. `scripts/demo.ts` compares the quote to `PORTICO_DEMO_EXPECTED_AMOUNT` if set. Set it to `accepts[0].amount` (`100000000000000` for `web-search`), or remove the line.
+Fund `split.portico.testnet` with 1 NEAR for payment-path storage headroom. `register_tool` refunds excess deposit above storage growth plus the 8,192-byte reserve; its `price` is `1000000` raw units (Step 8), not the quote amount — `POST /quote` for `web-search` returns `100000000000000`, and `pay_tool` charges the registered price and refunds the difference, so net spend is `1000000`. `scripts/demo.ts` compares the quote to `PORTICO_DEMO_EXPECTED_AMOUNT` if set; set it to `accepts[0].amount` (`100000000000000` for `web-search`), or remove the line.
 
 ```bash
 pnpm --filter @portico/facilitator dev   # :3002
@@ -202,7 +193,7 @@ curl -s http://localhost:3002/quote/pricing
 curl -s http://localhost:3002/health
 ```
 
-`POST /quote` returns HTTP 402 with `PAYMENT-REQUIRED` and a `PaymentRequired` JSON body. `accepts[].extra` sets `paymentFlow: "upfront"` (`/verify` → `/settle` runs before `authorization`). `GET /supported` returns x402 v2 kinds, empty `extensions`, and relayer `signers`. `POST /verify` is read-only and never broadcasts. `POST /settle` relays once and requires inner `SuccessValue` at FINAL. An RPC failure returns HTTP 202 `settlement_pending` with the outer hash for reconciliation. `GET /payments` and `GET /payments/:txHash` query the cache and RPC status.
+`POST /quote` returns HTTP 402 with `PAYMENT-REQUIRED` and a `PaymentRequired` JSON body; `accepts[].extra` sets `paymentFlow: "upfront"` (`/verify` → `/settle` runs before `authorization`). `GET /supported` returns x402 v2 kinds, empty `extensions`, and relayer `signers`. `POST /verify` is read-only and never broadcasts. `POST /settle` relays once and requires inner `SuccessValue` at FINAL; an RPC failure returns HTTP 202 `settlement_pending` with the outer hash for reconciliation. `GET /payments` and `GET /payments/:txHash` query the cache and RPC status.
 
 ## Paywall example
 
@@ -211,7 +202,7 @@ pnpm --filter paywall dev
 curl -i http://localhost:3003/premium
 ```
 
-Unpaid requests return 402 with `PAYMENT-REQUIRED`. Retries with `PAYMENT-SIGNATURE` are verified and settled via the facilitator before returning data and `PAYMENT-RESPONSE`. `GET /health` reports resource, amount, tool, and facilitator. Failed settlements omit the paid body. Set `PAYWALL_PRICE` to the tool raw price (`1000000` for `web-search`). The paywall quotes that exact amount.
+Unpaid requests return 402 with `PAYMENT-REQUIRED`. Retries with `PAYMENT-SIGNATURE` are verified and settled via the facilitator before returning data and `PAYMENT-RESPONSE`; failed settlements omit the paid body. `GET /health` reports resource, amount, tool, and facilitator. Set `PAYWALL_PRICE` to the tool raw price (`1000000` for `web-search`); the paywall quotes that exact amount.
 
 ## MCP server
 
@@ -221,7 +212,7 @@ pnpm --filter @portico/mcp start
 node mcp/dist/mcp-server.js
 ```
 
-The server speaks newline-delimited JSON-RPC 2.0 on stdio (protocol `2024-11-05`, name `portico-x402`). It exposes `x402_quote`, `x402_pay`, `x402_balance`, `x402_verify_payment`, and `x402_estimate_cost`. It reads `PORTICO_TOKEN_CONTRACT`, `PORTICO_SPLIT_CONTRACT`, `FACILITATOR_URL`, `PORTICO_RPC_URL`, `PORTICO_NETWORK`, and — for `x402_pay` — `PORTICO_BUYER_ACCOUNT` plus `PORTICO_BUYER_SECRET_KEY`. Failures return `isError: true` so the transport stays alive.
+The server speaks newline-delimited JSON-RPC 2.0 on stdio (protocol `2024-11-05`, name `portico-x402`). It exposes `x402_quote`, `x402_pay`, `x402_balance`, `x402_verify_payment`, and `x402_estimate_cost`; it reads `PORTICO_TOKEN_CONTRACT`, `PORTICO_SPLIT_CONTRACT`, `FACILITATOR_URL`, `PORTICO_RPC_URL`, `PORTICO_NETWORK`, and — for `x402_pay` — `PORTICO_BUYER_ACCOUNT` plus `PORTICO_BUYER_SECRET_KEY`. Failures return `isError: true` so the transport stays alive.
 
 ## Environment
 
@@ -238,26 +229,19 @@ Defaults live in `.env.example`. Required variables fail closed at boot.
 | `RATE_LIMIT_WINDOW_MS` / `RATE_LIMIT_MAX`                                                                 | `60000` / `100`                                          | rate-limit window, requests per window                            |
 | `PORTICO_BUYER_ACCOUNT` / `PORTICO_BUYER_SECRET_KEY`                                                      | `buyer1.portico.testnet` / —                             | zero-NEAR buyer account, full-access key                          |
 | `PORTICO_STREAM_SUBSCRIBER_ACCOUNT` / `PORTICO_STREAM_SUBSCRIBER_SECRET_KEY` / `PORTICO_STREAM_RECIPIENT` | `streamer.portico.testnet` / — / `PORTICO_DEV_ACCOUNT`   | stream funder, funder key, stream payee                           |
-| `PORTICO_DEMO_TOOL` / `PORTICO_DEMO_EXPECTED_AMOUNT`                                                      | `web-search` / unset                                     | tool paid by the demo and bench, optional quote-amount assertion  |
-| `PORTICO_DEMO_MAX_MS` / `PORTICO_DEMO_TRANSCRIPT`                                                         | `120000` / `../portico-demo-transcript.txt`              | demo loop budget asserted, sandbox demo transcript                |
-| `NEAR_SANDBOX_BIN` / `PORTICO_SANDBOX_RPC_URL` / `PORTICO_SANDBOX_HOME`                                   | auto glob under `target/debug/build` / empty / temporary | `near-sandbox` binary, RPC to reuse, sandbox home                 |
-| `PORTICO_SANDBOX_ROOT_ACCOUNT` / `PORTICO_SANDBOX_ROOT_KEY` / `PORTICO_SANDBOX_KEEP_HOME`                 | — / — / unset                                            | root account and key for a reused RPC, `1` keeps the sandbox home |
-| `PORTICO_BENCH_BASE_URL` / `PORTICO_BENCH_LOOPS`                                                          | `FACILITATOR_URL` / `20`                                 | bench facilitator override, bench loop count                      |
-| `PORTICO_BENCH_LOOP_TIMEOUT_MS` / `PORTICO_BENCH_TRANSCRIPT`                                              | `120000` / `../portico-bench-transcript.txt`             | per-loop FINAL deadline, bench transcript path                    |
 
-Paywall variables live in `.env.example` and `examples/paywall/src/index.ts`. They are `PORTICO_TOKEN_CONTRACT`, `PORTICO_SPLIT_CONTRACT`, `PAYWALL_PORT` 3003, `PAYWALL_PRICE` 1000000 raw units, `PAYWALL_TOOL` `web-search`, `PAYWALL_RESOURCE_URL`, `PAYWALL_DESCRIPTION`, `PAYWALL_MAX_TIMEOUT_SECONDS`, `PAYWALL_ALLOWED_ORIGINS`.
+Demo, sandbox, and bench variables (`PORTICO_DEMO_*`, `NEAR_SANDBOX_BIN`, `PORTICO_SANDBOX_*`, `PORTICO_BENCH_*`) are documented inline in the quickstart and bench sections above.
+
+Paywall variables live in `.env.example` and `examples/paywall/src/index.ts`: `PORTICO_TOKEN_CONTRACT`, `PORTICO_SPLIT_CONTRACT`, `PAYWALL_PORT` 3003, `PAYWALL_PRICE` 1000000 raw units, `PAYWALL_TOOL` `web-search`, `PAYWALL_RESOURCE_URL`, `PAYWALL_DESCRIPTION`, `PAYWALL_MAX_TIMEOUT_SECONDS`, `PAYWALL_ALLOWED_ORIGINS`.
 
 ## Protocol notes
 
-- **Exact amounts.** The facilitator checks `methodName ∈ {ft_transfer, ft_transfer_call}`, `args.amount == accepted.amount`, and `args.receiver_id == accepted.payTo`. The `msg` binds the action and tool to the developer.
-- **Gas budget.** The split path signs `ft_transfer_call` with `teraToGas(100)`. The single-transfer path uses 30 Tgas. Payouts use 10 Tgas. Resolver callbacks use 5 Tgas.
+- **Exact amounts and gas budget.** The facilitator checks `methodName ∈ {ft_transfer, ft_transfer_call}`, `args.amount == accepted.amount`, and `args.receiver_id == accepted.payTo`; the `msg` binds the action and tool to the developer. The split path signs `ft_transfer_call` with `teraToGas(100)`, the single-transfer path uses 30 Tgas, payouts 10 Tgas, and resolver callbacks 5 Tgas.
 - **Callbacks return `U128` and never panic.** `on_payout_done` restores developer balances on payout failure and returns the payer's unused amount unchanged. `on_stream_payout_done` restores claim state and returns the failed amount. `on_stream_refund_done` restores the deposit and returns the failed amount. The NEP-141 resolver refunds that value.
-- **Timeout mapping.** One block equals one second. `blockHeightTtl` equals `maxTimeoutSeconds` from `PAYMENT-REQUIRED` `accepts[0]`.
 - **Fee bounds.** `0..=5000` basis points. The platform leg is `amount * fee_bps / 10000` (floored). The developer receives the remainder so both legs sum to the sale.
 - **Streams.** `cliff_blocks` starts at `start_block` and saves `cliff_end_block` (`3600..=31536000` blocks). Paused blocks do not accrue. Claims pay no bonus. `accrued` caps at the deposit. `claimable = accrued - withdrawn`. This keeps `accrued + escrow_remaining == deposit`.
 - **Ledger.** `get_ledger(after_id, limit)` clamps limit to `1..=100`. After 100,000 entries, ledger writes stop while events continue for off-chain indexers.
-- **Duplicate settlement.** The cache keys on payload hash, fails closed, and evicts at `max_block_height` or TTL expiry.
-- **CORS.** Expose `PAYMENT-REQUIRED` and `PAYMENT-RESPONSE`. Allow `PAYMENT-SIGNATURE` and `Content-Type`. Always set `Vary: Origin` and answer `OPTIONS` unpaid.
+- **Duplicate settlement and CORS.** The cache keys on payload hash, fails closed, and evicts at `max_block_height` or TTL expiry. CORS exposes `PAYMENT-REQUIRED` and `PAYMENT-RESPONSE`, allows `PAYMENT-SIGNATURE` and `Content-Type`, always sets `Vary: Origin`, and answers `OPTIONS` unpaid.
 
 ## Limits and scope
 
@@ -265,8 +249,7 @@ Paywall variables live in `.env.example` and `examples/paywall/src/index.ts`. Th
 - **The relayer prepays.** The buyer needs a full-access key and zero liquid NEAR. The relayer pays gas and 1 yoctoNEAR. On failure, unused FT returns to the relayer, capping exposure at gas plus 1 yocto.
 - **Asynchronous finality.** `/settle` can return HTTP 202 `settlement_pending` with the outer hash. Poll `/payments/:txHash` and do not re-sign. The cache blocks duplicate settlement.
 - **Storage headroom caps.** Payment writes are unfunded since `ft_on_transfer` carries no NEAR. Caps are 10,000 balance keys, 10,000 streams, and 100,000 ledger entries. Adding a key requires `storage_byte_cost * (storage_usage + entry_bytes + 32768)` liquid balance. Exceeding a cap or headroom refunds the payment unused.
-- **No custody.** The facilitator holds zero funds. The contract holds stream escrow and withdrawable developer balances only. No mainnet deploy or real-asset custody exists.
-- **Streams are payment schedules, not investments.** They accrue a prepaid budget per block without yield or APY claims.
+- **No custody, no yield.** The facilitator holds zero funds; the contract holds stream escrow and withdrawable developer balances only, and no mainnet deploy or real-asset custody exists. Streams are payment schedules, not investments: they accrue a prepaid budget per block without yield or APY claims.
 
 ## Tests and requirements
 
