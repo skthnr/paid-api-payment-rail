@@ -12,7 +12,7 @@
  * double-submitting the delegate.
  */
 
-import { createHash } from 'node:crypto';
+import { hash } from 'node:crypto';
 import {
   Account,
   JsonRpcProvider,
@@ -102,7 +102,7 @@ export class NearClientError extends Error {
 }
 
 function sha256(bytes: Uint8Array): Uint8Array {
-  return new Uint8Array(createHash('sha256').update(bytes).digest());
+  return hash('sha256', bytes, 'buffer');
 }
 
 function argsBase64(args: Record<string, unknown>): string {
@@ -351,6 +351,13 @@ export function isNonceError(error: unknown): boolean {
 /** Transport or RPC wait timeout after (or around) broadcast. */
 export function isTimeoutError(error: unknown): boolean {
   return /timeout|timed out|TimeoutError|ECONNRESET|ETIMEDOUT|socket hang up|fetch failed|network error/i.test(
+    describeError(error)
+  );
+}
+
+/** RPC lookup failure indicating a transaction hash is not indexed. */
+export function isUnknownTx(error: unknown): boolean {
+  return /UNKNOWN_TRANSACTION|UnknownTransaction|does not exist|not found/i.test(
     describeError(error)
   );
 }

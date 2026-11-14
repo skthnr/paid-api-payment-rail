@@ -51,7 +51,7 @@ import {
   type PaymentPayload,
   type PaymentRequired,
 } from '../packages/sdk/src/index.js';
-import { isRecord } from '../packages/sdk/src/guards.js';
+import { isRecord, messageOf } from '../packages/sdk/src/guards.js';
 import {
   Account,
   JsonRpcProvider,
@@ -110,10 +110,6 @@ interface StreamOpened {
 
 interface AccessKeyState {
   permission: unknown;
-}
-
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 function rawAmount(value: string, name: string): string {

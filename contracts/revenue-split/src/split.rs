@@ -143,14 +143,14 @@ impl Contract {
         if amount == 0 {
             return;
         }
-        if self.developer_balances.get(developer).is_none() {
-            self.developer_balances_count = self.developer_balances_count.saturating_add(1);
-        }
-        let balance = self
-            .developer_balances
-            .get(developer)
-            .copied()
-            .unwrap_or(0)
+        let prev = match self.developer_balances.get(developer).copied() {
+            Some(existing) => existing,
+            None => {
+                self.developer_balances_count = self.developer_balances_count.saturating_add(1);
+                0
+            }
+        };
+        let balance = prev
             .checked_add(amount)
             .unwrap_or_else(|| env::panic_str("developer balance overflow"));
         self.developer_balances.insert(developer.clone(), balance);
@@ -170,15 +170,14 @@ impl Contract {
         if amount == 0 {
             return;
         }
-        if self.developer_balances.get(developer).is_none() {
-            self.developer_balances_count = self.developer_balances_count.saturating_add(1);
-        }
-        let balance = self
-            .developer_balances
-            .get(developer)
-            .copied()
-            .unwrap_or(0)
-            .saturating_add(amount);
+        let prev = match self.developer_balances.get(developer).copied() {
+            Some(existing) => existing,
+            None => {
+                self.developer_balances_count = self.developer_balances_count.saturating_add(1);
+                0
+            }
+        };
+        let balance = prev.saturating_add(amount);
         self.developer_balances.insert(developer.clone(), balance);
         self.total_developer_balance = self.total_developer_balance.saturating_add(amount);
     }

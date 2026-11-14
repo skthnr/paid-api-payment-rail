@@ -11,7 +11,7 @@
  * `GET /payments` without keeping a settled payload in the lock forever.
  */
 
-import { createHash } from 'node:crypto';
+import { hash } from 'node:crypto';
 import { LRUCache } from 'lru-cache';
 
 export type SettlementState = 'pending' | 'settled' | 'failed';
@@ -47,18 +47,28 @@ export interface BeginSettlementResult {
 export class SettlementCache {
   private readonly records: LRUCache<string, SettlementRecord>;
   private readonly history: LRUCache<string, SettlementRecord>;
+  private readonly txIndex = new Map<string, string>();
+  private nextExpiryHeight = Number.POSITIVE_INFINITY;
 
   public constructor(ttlMs: number, maxEntries = 10_000) {
-    const options = { max: maxEntries, ttl: ttlMs, updateAgeOnGet: false } as const;
+    const options = {
+      max: maxEntries,
+      ttl: ttlMs,
+      updateAgeOnGet: false,
+      dispose: (record: SettlementRecord) => {
+        if (record.txHash !== null && this.txIndex.get(record.txHash) === record.payloadHash) {
+          this.txIndex.delete(record.txHash);
+        }
+      },
+    } as const;
     this.records = new LRUCache<string, SettlementRecord>(options);
     this.history = new LRUCache<string, SettlementRecord>(options);
   }
 
   /** Hash raw bytes without re-encoding them first. */
   public static hashBytes(bytes: Uint8Array): string {
-    return createHash('sha256').update(bytes).digest('hex');
+    return hash('sha256', bytes, 'hex');
   }
-
   public get size(): number {
     return this.records.size + this.history.size;
   }
@@ -94,12 +104,21 @@ export class SettlementCache {
     };
     this.history.delete(payloadHash);
     this.records.set(payloadHash, record);
+    if (maxBlockHeight < this.nextExpiryHeight) {
+      this.nextExpiryHeight = maxBlockHeight;
+    }
     return { record, duplicate: false };
   }
 
   /** Record the broadcast hash before/while the outer transaction is submitted. */
   public attachTransaction(hash: string, txHash: string): boolean {
-    return this.update(hash, record => ({ ...record, txHash }));
+    return this.update(hash, record => {
+      if (record.txHash !== null && record.txHash !== txHash) {
+        this.txIndex.delete(record.txHash);
+      }
+      this.txIndex.set(txHash, hash);
+      return { ...record, txHash };
+    });
   }
 
   /**
@@ -122,6 +141,7 @@ export class SettlementCache {
     };
     this.records.delete(hash);
     this.history.set(hash, settled);
+    this.txIndex.set(txHash, hash);
     return true;
   }
 
@@ -139,19 +159,28 @@ export class SettlementCache {
    * passed, so the protocol rejects the inner transaction anyway.
    */
   public evictExpired(blockHeight: number): number {
+    if (blockHeight < this.nextExpiryHeight) {
+      return 0;
+    }
     let removed = 0;
+    let minNext = Number.POSITIVE_INFINITY;
     for (const [hash, record] of this.records.entries()) {
       if (record.maxBlockHeight <= blockHeight) {
         this.records.delete(hash);
         removed += 1;
+      } else if (record.maxBlockHeight < minNext) {
+        minNext = record.maxBlockHeight;
       }
     }
     for (const [hash, record] of this.history.entries()) {
       if (record.maxBlockHeight <= blockHeight) {
         this.history.delete(hash);
         removed += 1;
+      } else if (record.maxBlockHeight < minNext) {
+        minNext = record.maxBlockHeight;
       }
     }
+    this.nextExpiryHeight = minNext;
     this.records.purgeStale();
     this.history.purgeStale();
     return removed;
@@ -164,7 +193,27 @@ export class SettlementCache {
   }
 
   public findByTxHash(txHash: string): SettlementRecord | undefined {
-    return this.list().find(record => record.txHash === txHash);
+    const payloadHash = this.txIndex.get(txHash);
+    if (payloadHash !== undefined) {
+      const hit = this.records.get(payloadHash) ?? this.history.get(payloadHash);
+      if (hit !== undefined && hit.txHash === txHash) {
+        return hit;
+      }
+      this.txIndex.delete(txHash);
+    }
+    for (const record of this.records.values()) {
+      if (record.txHash === txHash) {
+        this.txIndex.set(txHash, record.payloadHash);
+        return record;
+      }
+    }
+    for (const record of this.history.values()) {
+      if (record.txHash === txHash) {
+        this.txIndex.set(txHash, record.payloadHash);
+        return record;
+      }
+    }
+    return undefined;
   }
 
   private update(hash: string, change: (record: SettlementRecord) => SettlementRecord): boolean {

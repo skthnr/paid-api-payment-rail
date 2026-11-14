@@ -20,14 +20,13 @@ try {
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isAccountId, isU128 } from '../packages/sdk/src/guards.js';
 
 const repoRoot = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
 const tokenDir = path.join(repoRoot, 'contracts', 'payment-token');
 const wasmPath = path.join(tokenDir, 'target', 'near', 'portico_payment_token.wasm');
 const dryRun = process.argv.includes('--dry-run');
 const skipBuild = process.argv.includes('--skip-build');
-
-const ACCOUNT_ID_PATTERN = /^(?=.{2,64}$)([a-z\d]+[-_])*[a-z\d]+(\.([a-z\d]+[-_])*[a-z\d]+)*$/;
 
 function env(name: string, fallback?: string): string {
   const value = process.env[name]?.trim();
@@ -42,7 +41,7 @@ function env(name: string, fallback?: string): string {
 
 function account(name: string, fallback?: string): string {
   const value = env(name, fallback);
-  if (!ACCOUNT_ID_PATTERN.test(value)) {
+  if (!isAccountId(value)) {
     throw new Error(`${name} is not a valid NEAR account id: ${value}`);
   }
   return value;
@@ -50,7 +49,7 @@ function account(name: string, fallback?: string): string {
 
 function amount(name: string, fallback: string): string {
   const value = env(name, fallback);
-  if (!/^\d+$/.test(value) || BigInt(value) <= 0n) {
+  if (!isU128(value) || BigInt(value) <= 0n) {
     throw new Error(`${name} must be a positive integer amount in raw FT units`);
   }
   return value;

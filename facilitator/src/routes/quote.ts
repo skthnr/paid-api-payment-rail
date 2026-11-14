@@ -8,9 +8,10 @@
  */
 
 import { Router, type Request, type Response } from 'express';
+import { encodeHeaderJson } from '@portico/sdk';
 import {
   MAX_QUOTE_QUANTITY,
-  MAX_SERVICE_NAME_LENGTH,
+  MAX_SERVICE_LEN,
   MAX_TIMEOUT_SECONDS,
   PAYMENT_REQUIRED_HEADER,
   PRICE_DECIMALS,
@@ -109,10 +110,6 @@ function multiplierFor(params: Record<string, unknown>): bigint {
   return multiplier;
 }
 
-export function encodePaymentRequired(requirement: PaymentRequired): string {
-  return Buffer.from(JSON.stringify(requirement), 'utf8').toString('base64');
-}
-
 function badRequest(res: Response, message: string, code: string): Response {
   return res.status(400).json({ error: message, code } satisfies ErrorResponse);
 }
@@ -128,7 +125,7 @@ export function createQuoteRouter(options: QuoteRouterOptions): Router {
     if (typeof body.service !== 'string' || body.service.length === 0) {
       return badRequest(res, 'Missing required field: service', 'MISSING_SERVICE');
     }
-    if (body.service.length > MAX_SERVICE_NAME_LENGTH) {
+    if (body.service.length > MAX_SERVICE_LEN) {
       return badRequest(res, 'service is too long', 'INVALID_SERVICE');
     }
     const params = body.params ?? {};
@@ -173,7 +170,7 @@ export function createQuoteRouter(options: QuoteRouterOptions): Router {
       ],
     };
 
-    res.setHeader(PAYMENT_REQUIRED_HEADER, encodePaymentRequired(requirement));
+    res.setHeader(PAYMENT_REQUIRED_HEADER, encodeHeaderJson(requirement));
     return res.status(402).json(requirement);
   });
 

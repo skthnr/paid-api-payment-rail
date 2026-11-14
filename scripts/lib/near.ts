@@ -6,9 +6,7 @@
  */
 
 import { JsonRpcProvider } from 'near-api-js';
-import { isRecord } from '../../packages/sdk/src/guards.js';
-
-const U128_PATTERN = /^\d+$/;
+import { isRecord, isU128 } from '../../packages/sdk/src/guards.js';
 
 async function readU128View(
   provider: JsonRpcProvider,
@@ -27,7 +25,7 @@ async function readU128View(
     throw new Error(`${label} returned no value`);
   }
   let text: string;
-  if (typeof result === 'string' && U128_PATTERN.test(result)) {
+  if (typeof result === 'string' && isU128(result)) {
     text = result;
   } else if (isRecord(result) && typeof result['0'] === 'string') {
     text = result['0'];

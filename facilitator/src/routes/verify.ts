@@ -8,7 +8,7 @@
  */
 
 import { Router, type NextFunction, type Request, type Response } from 'express';
-import type { DelegateGate, VerifiedPayment } from '../services/delegateGate.js';
+import type { DelegateGate, VerifiedPayment } from '../services/gate.js';
 import { PaymentHeaderError } from '../services/headers.js';
 import type { VerificationResponse } from '../types.js';
 import { readPaymentPayload } from './payment.js';

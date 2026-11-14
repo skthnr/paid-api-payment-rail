@@ -6,15 +6,16 @@
  * explicitly (see `server.ts`).
  */
 
-export const X402_VERSION = 2;
-export const X402_SCHEME = 'exact';
-
-export const PAYMENT_REQUIRED_HEADER = 'PAYMENT-REQUIRED';
-export const PAYMENT_SIGNATURE_HEADER = 'PAYMENT-SIGNATURE';
-export const PAYMENT_RESPONSE_HEADER = 'PAYMENT-RESPONSE';
-
-export const EXPOSED_PAYMENT_HEADERS = [PAYMENT_REQUIRED_HEADER, PAYMENT_RESPONSE_HEADER];
-export const ALLOWED_PAYMENT_HEADERS = ['Content-Type', PAYMENT_SIGNATURE_HEADER];
+export {
+  ALLOWED_PAYMENT_HEADERS,
+  EXPOSED_PAYMENT_HEADERS,
+  ONE_YOCTO,
+  PAYMENT_REQUIRED_HEADER,
+  PAYMENT_RESPONSE_HEADER,
+  PAYMENT_SIGNATURE_HEADER,
+  X402_SCHEME,
+  X402_VERSION,
+} from '@portico/sdk';
 
 /** Service prices are quoted with 6 decimal places of display precision. */
 export const PRICE_DECIMALS = 6;
@@ -25,12 +26,9 @@ export const RAW_PER_PRICE_UNIT = 10n ** BigInt(TOKEN_DECIMALS - PRICE_DECIMALS)
 export const MAX_TIMEOUT_SECONDS = 3600;
 export const MAX_QUOTE_QUANTITY = 1000;
 
-/** NEP-141 transfers attach exactly 1 yoctoNEAR (relayer prepaid). */
-export const ONE_YOCTO = 1n;
 export const U128_MAX = (1n << 128n) - 1n;
 /** NEP-366 nonce bound: `nonce < block_height * 1_000_000`. */
-export const MICRO_BLOCKS_PER_BLOCK = 1_000_000n;
-/** Delegated gas budgets: 30 Tgas official ft_transfer, 100 Tgas split call. */
+export const MICRO_BLOCKS = 1_000_000n;
 export const FT_TRANSFER_GAS = 30_000_000_000_000n;
 export const FT_TRANSFER_CALL_GAS = 100_000_000_000_000n;
 /**
@@ -39,4 +37,4 @@ export const FT_TRANSFER_CALL_GAS = 100_000_000_000_000n;
  * (`FacilitatorConfig.finalityLagBlocks`, range `0..=60`).
  */
 export const FINALITY_LAG_BLOCKS = 3;
-export const MAX_SERVICE_NAME_LENGTH = 64;
+export const MAX_SERVICE_LEN = 64;

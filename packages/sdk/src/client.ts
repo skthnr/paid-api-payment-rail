@@ -8,7 +8,12 @@
  * from the quoted requirement throws a typed error instead of degrading.
  */
 
-import { DEFAULT_NETWORK, PAYMENT_SIGNATURE_HEADER, X402_VERSION } from './constants.js';
+import {
+  DEFAULT_NETWORK,
+  PAYMENT_REQUIRED_HEADER,
+  PAYMENT_SIGNATURE_HEADER,
+  X402_VERSION,
+} from './constants.js';
 import {
   ClientConfigError,
   PaymentAcceptError,
@@ -24,6 +29,9 @@ import {
 import { isRecord } from './guards.js';
 import {
   buildPaymentSignature,
+  decodeHeaderJson,
+  getHeader,
+  parsePaymentRequired,
   readPaymentRequired,
   readSettlementResponse,
   type HeaderReader,
@@ -457,6 +465,10 @@ export class PorticoClient {
   }
 
   private async readRequirement(response: PaymentResponseLike): Promise<PaymentRequired> {
+    const header = getHeader(response.headers, PAYMENT_REQUIRED_HEADER);
+    if (header) {
+      return parsePaymentRequired(decodeHeaderJson<unknown>(header, PAYMENT_REQUIRED_HEADER));
+    }
     const { json } = await readResponseBody(response);
     const requirement = readPaymentRequired({
       status: response.status,

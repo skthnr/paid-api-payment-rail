@@ -13,7 +13,7 @@ import type { SignedDelegate, TxExecutionStatus } from 'near-api-js';
 import { PAYMENT_RESPONSE_HEADER } from '../constants.js';
 import type { FacilitatorConfig } from '../config.js';
 import { SettlementCache } from '../services/cache.js';
-import type { DelegateGate } from '../services/delegateGate.js';
+import type { DelegateGate } from '../services/gate.js';
 import {
   decodeCanonicalBase64,
   encodeHeaderJson,
@@ -23,6 +23,7 @@ import { isRecord } from '@portico/sdk';
 import {
   isNonceError,
   isTimeoutError,
+  isUnknownTx,
   type NearReader,
   type RelayResult,
   type TransactionResponse,
@@ -67,11 +68,6 @@ function payloadHashOf(payload: unknown): string | null {
 function sendSettlement(res: Response, status: number, body: SettlementResponse): void {
   res.setHeader(PAYMENT_RESPONSE_HEADER, encodeHeaderJson(body));
   res.status(status).json(body);
-}
-
-function isUnknownTransactionError(error: unknown): boolean {
-  const text = error instanceof Error ? error.message : String(error);
-  return /UNKNOWN_TRANSACTION|UnknownTransaction|does not exist|not found/i.test(text);
 }
 
 export function createSettleRouter(options: SettleRouterOptions): Router {
@@ -230,7 +226,7 @@ export function createSettleRouter(options: SettleRouterOptions): Router {
         if (
           isTimeoutError(relay.error) ||
           isTimeoutError(lookupError) ||
-          isUnknownTransactionError(lookupError)
+          isUnknownTx(lookupError)
         ) {
           sendSettlement(res, 202, {
             success: false,

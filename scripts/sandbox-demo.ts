@@ -79,7 +79,13 @@ import {
   type Action,
   type KeyPairString,
 } from 'near-api-js';
-import { isRecord } from '../packages/sdk/src/guards.js';
+import {
+  isAccountId,
+  isRecord,
+  isSecretKey,
+  messageOf,
+  normalizeHttpUrl,
+} from '../packages/sdk/src/guards.js';
 
 const ONE_NEAR = 10n ** 24n;
 const ONE_YOCTO = 1n;
@@ -87,7 +93,7 @@ const EMPTY_CODE_HASH = '11111111111111111111111111111111';
 const FT_TOTAL_SUPPLY = (1_000_000_000n * 10n ** 18n).toString();
 const FT_DEMO_FUNDING = 1_000n * 10n ** 18n;
 const STORAGE_DEPOSIT_NEAR = ONE_NEAR / 100n;
-const REGISTRATION_DEPOSIT_NEAR = ONE_NEAR;
+const REG_DEPOSIT_NEAR = ONE_NEAR;
 const TOOL_NAME = 'web-search';
 /** Registered contract price in raw FT units (CONSTANTS K20 / Step 8). */
 const TOOL_PRICE = '1000000';
@@ -102,12 +108,10 @@ const STREAM_DEPOSIT = '1000000';
 const STREAM_RATE = '10';
 const CLIFF_BLOCKS = 3_600;
 const DEFAULT_DEMO_MAX_MS = 120_000;
-const DEFAULT_FACILITATOR_PORT = 3002;
+const FACILITATOR_PORT = 3002;
 const DEFAULT_PAYWALL_PORT = 3003;
-const SANDBOX_INIT_TIMEOUT_MS = 180_000;
-const SERVICE_HEALTH_TIMEOUT_MS = 90_000;
-const ACCOUNT_ID_PATTERN = /^(?=.{2,64}$)([a-z\d]+[-_])*[a-z\d]+(\.([a-z\d]+[-_])*[a-z\d]+)*$/;
-const SECRET_KEY_PATTERN = /^(ed25519|secp256k1):[1-9A-HJ-NP-Za-km-z]+$/;
+const INIT_TIMEOUT_MS = 180_000;
+const HEALTH_TIMEOUT_MS = 90_000;
 
 /**
  * Deterministic sandbox keys. These are public test fixtures: they control
@@ -228,10 +232,6 @@ function fail(step: string, message: string, cause?: unknown): never {
   throw new DemoFailure(step, message, cause === undefined ? undefined : { cause });
 }
 
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 /** Line-buffered transcript outside the repository. */
 class Transcript {
   private readonly startedAt = Date.now();
@@ -303,16 +303,11 @@ function integerEnv(name: string, fallback: number, min: number, max: number): n
 }
 
 function httpUrl(value: string, name: string): string {
-  let parsed: URL;
-  try {
-    parsed = new URL(value);
-  } catch (cause) {
-    fail('configuration', `${name} is not a valid URL: ${value}`, cause);
+  const normalized = normalizeHttpUrl(value);
+  if (normalized === null) {
+    fail('configuration', `${name} must be a valid http or https URL: ${value}`);
   }
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    fail('configuration', `${name} must use http or https`);
-  }
-  return parsed.toString().replace(/\/+$/, '');
+  return normalized;
 }
 
 function loadConfig(): SandboxDemoConfig {
@@ -328,12 +323,7 @@ function loadConfig(): SandboxDemoConfig {
   const sandboxHomeRaw = envValue('PORTICO_SANDBOX_HOME');
   const sandboxHome = sandboxHomeRaw === undefined ? undefined : resolve(sandboxHomeRaw);
   const ownsHome = sandboxHome === undefined;
-  const facilitatorPort = integerEnv(
-    'PORTICO_FACILITATOR_PORT',
-    DEFAULT_FACILITATOR_PORT,
-    1,
-    65_535
-  );
+  const facilitatorPort = integerEnv('PORTICO_FACILITATOR_PORT', FACILITATOR_PORT, 1, 65_535);
   const paywallPort = integerEnv('PAYWALL_PORT', DEFAULT_PAYWALL_PORT, 1, 65_535);
   if (facilitatorPort === paywallPort) {
     fail('configuration', 'PORTICO_FACILITATOR_PORT and PAYWALL_PORT must differ');
@@ -347,14 +337,14 @@ function loadConfig(): SandboxDemoConfig {
   const tokenWasm = resolveContractWasm(repoRoot, 'payment-token', 'portico_payment_token');
   const splitWasm = resolveContractWasm(repoRoot, 'revenue-split', 'portico_revenue_split');
   const explicitRootAccount = envValue('PORTICO_SANDBOX_ROOT_ACCOUNT');
-  if (explicitRootAccount !== undefined && !ACCOUNT_ID_PATTERN.test(explicitRootAccount)) {
+  if (explicitRootAccount !== undefined && !isAccountId(explicitRootAccount)) {
     fail(
       'configuration',
       `PORTICO_SANDBOX_ROOT_ACCOUNT is not a valid NEAR account id: ${explicitRootAccount}`
     );
   }
   const explicitRootKey = envValue('PORTICO_SANDBOX_ROOT_KEY');
-  if (explicitRootKey !== undefined && !SECRET_KEY_PATTERN.test(explicitRootKey)) {
+  if (explicitRootKey !== undefined && !isSecretKey(explicitRootKey)) {
     fail('configuration', 'PORTICO_SANDBOX_ROOT_KEY must be an ed25519 or secp256k1 secret key');
   }
   return {
@@ -720,10 +710,10 @@ function readValidatorKey(home: string): ValidatorKeyFile {
   }
   const account = parsed['account_id'];
   const key = parsed['secret_key'];
-  if (!ACCOUNT_ID_PATTERN.test(account)) {
+  if (!isAccountId(account)) {
     fail('sandbox credentials', `${keyPath} has an invalid account id: ${account}`);
   }
-  if (!SECRET_KEY_PATTERN.test(key)) {
+  if (!isSecretKey(key)) {
     fail('sandbox credentials', `${keyPath} has an invalid secret key`);
   }
   return { account_id: account, secret_key: key };
@@ -829,7 +819,7 @@ async function prepareSandbox(config: SandboxDemoConfig): Promise<SandboxRuntime
       env,
     });
     void init;
-    const code = await waitForExit('sandbox-init', SANDBOX_INIT_TIMEOUT_MS);
+    const code = await waitForExit('sandbox-init', INIT_TIMEOUT_MS);
     if (code !== 0) {
       fail(
         'sandbox init',
@@ -883,7 +873,7 @@ function accountIdsFor(rootAccount: string): AccountIds {
   }
   const sub = (prefix: string): string => {
     const id = `${prefix}.${rootAccount}`;
-    if (!ACCOUNT_ID_PATTERN.test(id)) {
+    if (!isAccountId(id)) {
       fail('sandbox credentials', `derived account id is invalid: ${id}`);
     }
     return id;
@@ -1265,7 +1255,7 @@ async function setupChain(config: SandboxDemoConfig, sandbox: SandboxRuntime): P
           'register_tool',
           { name: TOOL_NAME, developer: ids.developer, price: TOOL_PRICE },
           teraToGas(100),
-          REGISTRATION_DEPOSIT_NEAR
+          REG_DEPOSIT_NEAR
         ),
       ],
       `register_tool(${TOOL_NAME})`
@@ -1478,13 +1468,9 @@ async function main(): Promise<void> {
       waitForHealth(
         'facilitator',
         `http://127.0.0.1:${config.facilitatorPort}/health`,
-        SERVICE_HEALTH_TIMEOUT_MS
+        HEALTH_TIMEOUT_MS
       ),
-      waitForHealth(
-        'paywall',
-        `http://127.0.0.1:${config.paywallPort}/health`,
-        SERVICE_HEALTH_TIMEOUT_MS
-      ),
+      waitForHealth('paywall', `http://127.0.0.1:${config.paywallPort}/health`, HEALTH_TIMEOUT_MS),
     ]);
   });
 

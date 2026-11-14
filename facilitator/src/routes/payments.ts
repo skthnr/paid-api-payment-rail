@@ -13,7 +13,7 @@ import { Router, type NextFunction, type Request, type Response } from 'express'
 import { isAccountId } from '../config.js';
 import type { SettlementCache, SettlementRecord } from '../services/cache.js';
 import { isRecord } from '@portico/sdk';
-import type { TransactionResponse } from '../services/near.js';
+import { isUnknownTx, type TransactionResponse } from '../services/near.js';
 import { inspectInnerTransfer } from '../services/receipts.js';
 import type { PaymentRecordView, PaymentsListResponse, SettlementResponse } from '../types.js';
 import type { SettlementChain } from './settle.js';
@@ -122,11 +122,6 @@ function delegatedPayer(response: TransactionResponse, relayerId: string): strin
   return null;
 }
 
-function isUnknownTransaction(error: unknown): boolean {
-  const text = error instanceof Error ? error.message : String(error);
-  return /UNKNOWN_TRANSACTION|UnknownTransaction|does not exist|not found/i.test(text);
-}
-
 export function createPaymentsRouter(options: PaymentsRouterOptions): Router {
   const router = Router();
 
@@ -184,7 +179,7 @@ export function createPaymentsRouter(options: PaymentsRouterOptions): Router {
       }
       res.json(settlement);
     } catch (error) {
-      if (isUnknownTransaction(error)) {
+      if (isUnknownTx(error)) {
         res.status(404).json({ error: 'Payment not found', code: 'NOT_FOUND' });
         return;
       }

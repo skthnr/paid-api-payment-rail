@@ -6,10 +6,13 @@
  * strings can never decode to the same signed delegate.
  */
 
-import { decodeHeaderJson as decodeSdkHeaderJson, encodeHeaderJson, messageOf } from '@portico/sdk';
-
-const BASE64_PATTERN = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
-
+import {
+  decodeCanonicalBase64 as decodeSdkBase64,
+  decodeHeaderJson as decodeSdkHeaderJson,
+  encodeHeaderJson,
+  messageOf,
+  PaymentHeaderError as SdkPaymentHeaderError,
+} from '@portico/sdk';
 export class PaymentHeaderError extends Error {
   public readonly code: string;
   public readonly httpStatus = 400;
@@ -23,15 +26,14 @@ export class PaymentHeaderError extends Error {
 
 export { encodeHeaderJson };
 export function decodeCanonicalBase64(value: string, label: string): Uint8Array {
-  const trimmed = value.trim();
-  if (trimmed.length === 0 || !BASE64_PATTERN.test(trimmed)) {
-    throw new PaymentHeaderError(`${label} must be canonical base64`);
+  try {
+    return decodeSdkBase64(value, label);
+  } catch (error) {
+    if (error instanceof SdkPaymentHeaderError) {
+      throw new PaymentHeaderError(`${label} must be canonical base64`);
+    }
+    throw error;
   }
-  const bytes = Buffer.from(trimmed, 'base64');
-  if (bytes.length === 0 || bytes.toString('base64') !== trimmed) {
-    throw new PaymentHeaderError(`${label} must be canonical base64`);
-  }
-  return new Uint8Array(bytes);
 }
 
 export function decodeHeaderJson(header: string, headerName: string): unknown {

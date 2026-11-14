@@ -16,8 +16,13 @@
 import {
   PorticoClient,
   RevenueSplitClient,
+  TX_HASH_PATTERN,
+  isAccountId,
   isRecord,
+  isSecretKey,
+  isU128,
   normalizeAmount,
+  normalizeHttpUrl,
   type AcceptsEntry,
   type FetchLike,
   type PaymentRequired,
@@ -85,11 +90,6 @@ export class ToolExecutionError extends Error {
   }
 }
 
-const ACCOUNT_ID_PATTERN = /^(?=.{2,64}$)([a-z\d]+[-_])*[a-z\d]+(\.([a-z\d]+[-_])*[a-z\d]+)*$/;
-const SECRET_KEY_PATTERN = /^(ed25519|secp256k1):[1-9A-HJ-NP-Za-km-z]+$/;
-const TX_HASH_PATTERN = /^[1-9A-HJ-NP-Za-km-z]{32,64}$/;
-const U128_PATTERN = /^\d+$/;
-
 function requiredEnv(env: NodeJS.ProcessEnv, name: string): string {
   const value = env[name]?.trim();
   if (value === undefined || value.length === 0) {
@@ -129,11 +129,7 @@ function optionalString(
   return trimmed;
 }
 
-function optionalPositiveInteger(
-  args: Record<string, unknown>,
-  field: string,
-  max: number
-): number | undefined {
+function optPosInt(args: Record<string, unknown>, field: string, max: number): number | undefined {
   const value = args[field];
   if (value === undefined) {
     return undefined;
@@ -159,20 +155,15 @@ function requireHttpUrl(value: unknown, field: string): string {
   if (typeof value !== 'string' || value.trim().length === 0) {
     throw new ToolInputError(`${field} must be an absolute http(s) URL`);
   }
-  let parsed: URL;
-  try {
-    parsed = new URL(value.trim());
-  } catch {
+  const normalized = normalizeHttpUrl(value.trim());
+  if (normalized === null) {
     throw new ToolInputError(`${field} must be an absolute http(s) URL`);
   }
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    throw new ToolInputError(`${field} must use http or https`);
-  }
-  return parsed.toString();
+  return normalized;
 }
 
 function assertAccountId(value: string, field: string): string {
-  if (!ACCOUNT_ID_PATTERN.test(value)) {
+  if (!isAccountId(value)) {
     throw new ToolInputError(`${field} is not a valid NEAR account id`);
   }
   return value;
@@ -190,7 +181,7 @@ function optionalParams(args: Record<string, unknown>): Record<string, unknown> 
 }
 
 function readU128Value(value: unknown, label: string): string {
-  if (typeof value === 'string' && U128_PATTERN.test(value)) {
+  if (typeof value === 'string' && isU128(value)) {
     return value;
   }
   if (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0) {
@@ -198,7 +189,7 @@ function readU128Value(value: unknown, label: string): string {
   }
   if (isRecord(value)) {
     const first = value['0'];
-    if (typeof first === 'string' && U128_PATTERN.test(first)) {
+    if (typeof first === 'string' && isU128(first)) {
       return first;
     }
   }
@@ -352,7 +343,7 @@ export class PorticoTools implements ToolHost {
     if (config.buyerAccount !== undefined) {
       assertAccountId(config.buyerAccount, 'buyerAccount');
     }
-    if (config.buyerSecretKey !== undefined && !SECRET_KEY_PATTERN.test(config.buyerSecretKey)) {
+    if (config.buyerSecretKey !== undefined && !isSecretKey(config.buyerSecretKey)) {
       throw new ToolConfigError('buyerSecretKey must be an ed25519 or secp256k1 secret key');
     }
   }
@@ -389,7 +380,7 @@ export class PorticoTools implements ToolHost {
       throw new ToolInputError('method must be GET or POST');
     }
     const body = optionalString(args, 'body', 65_536);
-    const maxTimeoutSeconds = optionalPositiveInteger(args, 'maxTimeoutSeconds', 3_600);
+    const maxTimeoutSeconds = optPosInt(args, 'maxTimeoutSeconds', 3_600);
 
     const result = await this.client.pay({
       account: this.buyerAccountOrThrow(),
@@ -418,10 +409,10 @@ export class PorticoTools implements ToolHost {
     }
     assertAccountId(accountId, 'account');
     const provider = this.getProvider();
-    const view = await provider.viewAccount({
-      accountId,
-      blockQuery: { finality: 'final' },
-    });
+    const [view, tokenRaw] = await Promise.all([
+      provider.viewAccount({ accountId, blockQuery: { finality: 'final' } }),
+      this.tokenBalance(accountId),
+    ]);
     return {
       account: accountId,
       near: {
@@ -431,7 +422,7 @@ export class PorticoTools implements ToolHost {
       },
       token: {
         contract: this.config.tokenContract,
-        raw: (await this.tokenBalance(accountId)).toString(),
+        raw: tokenRaw.toString(),
       },
     };
   }
@@ -469,8 +460,10 @@ export class PorticoTools implements ToolHost {
     const service = requireString(args, 'service', 64);
     const requirement = await this.client.quote(service, optionalParams(args));
     const accepted = firstAccept(requirement);
-    const split = await this.revenueSplit.calculate_split(accepted.amount);
-    const tool = await this.revenueSplit.get_tool_info(service);
+    const [split, tool] = await Promise.all([
+      this.revenueSplit.calculate_split(accepted.amount),
+      this.revenueSplit.get_tool_info(service),
+    ]);
     return {
       service,
       network: accepted.network,

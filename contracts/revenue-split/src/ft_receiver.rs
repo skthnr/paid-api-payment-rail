@@ -565,7 +565,7 @@ impl Contract {
         rate_per_block: u128,
         cliff_blocks: u64,
     ) -> PromiseOrValue<U128> {
-        if self.open_stream_from_deposit(funder, amount.0, recipient, rate_per_block, cliff_blocks) {
+        if self.open_stream_deposit(funder, amount.0, recipient, rate_per_block, cliff_blocks) {
             PromiseOrValue::Value(U128(0))
         } else {
             PromiseOrValue::Value(amount)
@@ -579,7 +579,7 @@ impl Contract {
         amount: U128,
         stream_id: u64,
     ) -> PromiseOrValue<U128> {
-        if self.fund_stream_from_deposit(funder, amount.0, stream_id) {
+        if self.fund_stream_deposit(funder, amount.0, stream_id) {
             PromiseOrValue::Value(U128(0))
         } else {
             PromiseOrValue::Value(amount)

@@ -572,7 +572,7 @@ impl Contract {
 
 impl Contract {
     /// Creates a stream from a first deposit, or returns `false` untouched.
-    pub(crate) fn open_stream_from_deposit(
+    pub(crate) fn open_stream_deposit(
         &mut self,
         funder: &AccountId,
         amount: u128,
@@ -641,7 +641,7 @@ impl Contract {
     }
 
     /// Adds `amount` to an existing non-closed stream, or returns `false`.
-    pub(crate) fn fund_stream_from_deposit(
+    pub(crate) fn fund_stream_deposit(
         &mut self,
         funder: &AccountId,
         amount: u128,

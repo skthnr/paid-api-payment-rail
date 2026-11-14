@@ -13,6 +13,7 @@ try {
 }
 
 import { FINALITY_LAG_BLOCKS } from './constants.js';
+import { isAccountId, isSecretKey, normalizeHttpUrl } from '@portico/sdk';
 
 export type PorticoNetwork = `near:${string}`;
 
@@ -48,12 +49,7 @@ export class ConfigError extends Error {
   }
 }
 
-const ACCOUNT_ID_PATTERN = /^(?=.{2,64}$)([a-z\d]+[-_])*[a-z\d]+(\.([a-z\d]+[-_])*[a-z\d]+)*$/;
-const SECRET_KEY_PATTERN = /^(ed25519|secp256k1):[1-9A-HJ-NP-Za-km-z]+$/;
-
-export function isAccountId(value: string): boolean {
-  return ACCOUNT_ID_PATTERN.test(value);
-}
+export { isAccountId };
 
 export function assertAccountId(value: string, name: string): string {
   if (!isAccountId(value)) {
@@ -96,7 +92,7 @@ function parseSecretKeys(raw: string): string[] {
     throw new ConfigError('PORTICO_RELAYER_SECRET_KEYS must be a non-empty JSON array');
   }
   return parsed.map((entry, index) => {
-    if (typeof entry !== 'string' || !SECRET_KEY_PATTERN.test(entry)) {
+    if (typeof entry !== 'string' || !isSecretKey(entry)) {
       throw new ConfigError(`PORTICO_RELAYER_SECRET_KEYS[${index}] is not a secret key`);
     }
     return entry;
@@ -111,16 +107,11 @@ function parseNetwork(raw: string): PorticoNetwork {
 }
 
 function parseUrl(raw: string): string {
-  let url: URL;
-  try {
-    url = new URL(raw);
-  } catch {
-    throw new ConfigError(`FACILITATOR_URL is not a valid URL: ${raw}`);
+  const normalized = normalizeHttpUrl(raw);
+  if (normalized === null) {
+    throw new ConfigError(`FACILITATOR_URL must be a valid http or https URL: ${raw}`);
   }
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-    throw new ConfigError('FACILITATOR_URL must use http or https');
-  }
-  return url.toString().replace(/\/$/, '');
+  return normalized;
 }
 
 /**

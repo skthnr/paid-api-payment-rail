@@ -17,7 +17,7 @@
 //!    stream, or a claim never grows the key set. The ledger has its own cap
 //!    ([`crate::ledger::MAX_LEDGER_ENTRIES`]) and only stops appending entries.
 //! 2. **Balance headroom.** Before a payment-path write that can add a key,
-//!    `Contract::ensure_payment_storage_headroom` requires
+//!    `Contract::has_pay_headroom` requires
 //!    `account_balance >= storage_byte_cost * (storage_usage + extra_bytes +
 //!    PAY_HEADROOM_BYTES)`. The comparison uses saturating
 //!    arithmetic on `u128`, so neither a huge `storage_usage` nor an absurd
@@ -87,7 +87,7 @@ impl Contract {
     /// `extra_bytes` is the conservative cost of the keys the caller is about
     /// to create; `0` always passes because existing-key writes never grow the
     /// key set.
-    pub(crate) fn ensure_payment_storage_headroom(&self, extra_bytes: u64) -> bool {
+    pub(crate) fn has_pay_headroom(&self, extra_bytes: u64) -> bool {
         if extra_bytes == 0 {
             return true;
         }
@@ -114,7 +114,7 @@ impl Contract {
                 continue;
             }
             seen.push(account);
-            if self.developer_balances.get(account).is_none() {
+            if !self.developer_balances.contains_key(account) {
                 new_keys = new_keys.saturating_add(1);
             }
         }
@@ -124,7 +124,7 @@ impl Contract {
         if self.developer_balances_count.saturating_add(new_keys) > MAX_DEV_BALS {
             return false;
         }
-        self.ensure_payment_storage_headroom(
+        self.has_pay_headroom(
             DEV_BAL_BYTES.saturating_mul(new_keys),
         )
     }
@@ -137,6 +137,6 @@ impl Contract {
         if self.next_stream_id > MAX_STREAMS {
             return false;
         }
-        self.ensure_payment_storage_headroom(STREAM_BYTES)
+        self.has_pay_headroom(STREAM_BYTES)
     }
 }

@@ -431,7 +431,7 @@ impl Contract {
 
 /// Validates a developer sub-account name: one non-empty segment, at most 64
 /// bytes, no dot (the parent account supplies the domain).
-fn validate_sub_account_name(name: &str) -> Result<(), &'static str> {
+fn check_sub_name(name: &str) -> Result<(), &'static str> {
     if name.is_empty() {
         return Err("developer account name must not be empty");
     }
@@ -446,7 +446,7 @@ fn validate_sub_account_name(name: &str) -> Result<(), &'static str> {
 
 /// Builds and validates `{name}.{parent}`.
 fn sub_account_id(parent: &AccountId, name: &str) -> Result<AccountId, &'static str> {
-    validate_sub_account_name(name)?;
+    check_sub_name(name)?;
     format!("{name}.{parent}")
         .parse()
         .map_err(|_| "developer account name does not form a valid account id")

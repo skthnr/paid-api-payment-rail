@@ -9,7 +9,7 @@
  * holds, while the action receiver stays the NEP-141 token.
  */
 
-import { createHash } from 'node:crypto';
+import { hash } from 'node:crypto';
 import {
   KeyType,
   decodeSignedDelegate,
@@ -19,7 +19,7 @@ import {
 import {
   FT_TRANSFER_CALL_GAS,
   FT_TRANSFER_GAS,
-  MICRO_BLOCKS_PER_BLOCK,
+  MICRO_BLOCKS,
   ONE_YOCTO,
   U128_MAX,
 } from '../constants.js';
@@ -400,13 +400,10 @@ export class DelegateGate {
         'delegate signature curve must match the public key curve'
       );
     }
-    const delegateHash = createHash('sha256').update(encodeDelegateAction(delegateAction)).digest();
+    const delegateHash = hash('sha256', encodeDelegateAction(delegateAction), 'buffer');
     let signatureValid: boolean;
     try {
-      signatureValid = delegateAction.publicKey.verify(
-        new Uint8Array(delegateHash),
-        signatureBytes
-      );
+      signatureValid = delegateAction.publicKey.verify(delegateHash, signatureBytes);
     } catch {
       signatureValid = false;
     }
@@ -422,37 +419,55 @@ export class DelegateGate {
     const blockHeight = block.height;
     const blockHash = block.hash;
 
-    await this.requireAccount(
-      senderId,
-      blockHash,
-      'unknown_sender',
-      'payer account does not exist'
-    );
-    await this.requireContract(this.config.tokenContract, blockHash, 'token_not_deployed');
-    if (methodName === 'ft_transfer_call') {
-      await this.requireContract(this.config.splitContract, blockHash, 'token_not_deployed');
-    }
+    const isSplitCall = methodName === 'ft_transfer_call';
+    const pk = delegateAction.publicKey.toString();
+    const [senderRes, tokenRes, splitRes, keyRes, balRes, targetRes, storageRes] =
+      await Promise.allSettled([
+        this.requireAccount(senderId, blockHash, 'unknown_sender', 'payer account does not exist'),
+        this.requireContract(this.config.tokenContract, blockHash, 'token_not_deployed'),
+        isSplitCall
+          ? this.requireContract(this.config.splitContract, blockHash, 'token_not_deployed')
+          : Promise.resolve(),
+        this.near.viewAccessKey(senderId, pk, blockHash).catch((error: unknown) => {
+          if (isMissingAccountError(error)) {
+            throw new GateReject(
+              'missing_access_key',
+              'payer key is not registered on the account'
+            );
+          }
+          throw new GateReject('chain_unavailable', 'view_access_key failed', 503);
+        }),
+        this.near.ftBalanceOf(senderId, blockHash).catch((error: unknown) => {
+          if (isMissingAccountError(error)) {
+            return 0n;
+          }
+          throw new GateReject('chain_unavailable', 'ft_balance_of failed', 503);
+        }),
+        isSplitCall
+          ? this.fetchToolInfo(tool === null ? '' : tool, blockHash)
+          : this.requireAccount(
+              accepted.payTo,
+              blockHash,
+              'payee_not_registered',
+              'payTo account does not exist'
+            ).then(() => null),
+        this.near.storageBalanceOf(accepted.payTo, blockHash).catch(() => {
+          throw new GateReject('chain_unavailable', 'storage_balance_of failed', 503);
+        }),
+      ]);
 
-    let accessKey: AccessKeyQuery;
-    try {
-      accessKey = await this.near.viewAccessKey(
-        senderId,
-        delegateAction.publicKey.toString(),
-        blockHash
-      );
-    } catch (error) {
-      if (isMissingAccountError(error)) {
-        throw new GateReject('missing_access_key', 'payer key is not registered on the account');
-      }
-      throw new GateReject('chain_unavailable', 'view_access_key failed', 503);
-    }
+    if (senderRes.status === 'rejected') throw senderRes.reason;
+    if (tokenRes.status === 'rejected') throw tokenRes.reason;
+    if (splitRes.status === 'rejected') throw splitRes.reason;
+    if (keyRes.status === 'rejected') throw keyRes.reason;
+
+    const accessKey: AccessKeyQuery = keyRes.value;
     if (!isFullAccessPermission(accessKey.permission)) {
       throw new GateReject(
         'full_access_key_required',
         'payer key must be FullAccess; function-call and gas keys are rejected'
       );
     }
-
     const keyNonce = accessKey.nonce;
     if (delegateAction.nonce <= keyNonce) {
       throw new GateReject(
@@ -460,7 +475,7 @@ export class DelegateGate {
         'delegate nonce is not greater than the access-key nonce'
       );
     }
-    if (delegateAction.nonce >= BigInt(blockHeight) * MICRO_BLOCKS_PER_BLOCK) {
+    if (delegateAction.nonce >= BigInt(blockHeight) * MICRO_BLOCKS) {
       throw new GateReject(
         'nonce_too_large',
         'delegate nonce exceeds the NEP-366 micro-block bound'
@@ -478,23 +493,16 @@ export class DelegateGate {
       );
     }
 
-    let balance: bigint;
-    try {
-      balance = await this.near.ftBalanceOf(senderId, blockHash);
-    } catch (error) {
-      if (isMissingAccountError(error)) {
-        balance = 0n;
-      } else {
-        throw new GateReject('chain_unavailable', 'ft_balance_of failed', 503);
-      }
-    }
+    if (balRes.status === 'rejected') throw balRes.reason;
+    const balance: bigint = balRes.value;
     if (balance < acceptedAmount) {
       throw new GateReject('insufficient_balance', 'payer FT balance is below accepted.amount');
     }
 
+    if (targetRes.status === 'rejected') throw targetRes.reason;
     let payee: string;
-    if (methodName === 'ft_transfer_call') {
-      const toolInfo = await this.fetchToolInfo(tool === null ? '' : tool, blockHash);
+    if (isSplitCall) {
+      const toolInfo = targetRes.value;
       if (toolInfo === null) {
         throw new GateReject('unknown_tool', 'msg.tool is not registered');
       }
@@ -518,25 +526,14 @@ export class DelegateGate {
       );
       payee = toolInfo.developer;
     } else {
-      await this.requireAccount(
-        accepted.payTo,
-        blockHash,
-        'payee_not_registered',
-        'payTo account does not exist'
-      );
       payee = accepted.payTo;
     }
 
-    let storage: StorageBalanceView | null;
-    try {
-      storage = await this.near.storageBalanceOf(accepted.payTo, blockHash);
-    } catch {
-      throw new GateReject('chain_unavailable', 'storage_balance_of failed', 503);
-    }
+    if (storageRes.status === 'rejected') throw storageRes.reason;
+    const storage: StorageBalanceView | null = storageRes.value;
     if (storage === null) {
       throw new GateReject('payee_not_registered', 'payTo is not registered with the FT');
     }
-
     return {
       success: true,
       payer: senderId,

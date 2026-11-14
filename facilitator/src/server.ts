@@ -25,7 +25,7 @@ import { createQuoteRouter } from './routes/quote.js';
 import { createSettleRouter } from './routes/settle.js';
 import { createVerifyRouter } from './routes/verify.js';
 import { SettlementCache } from './services/cache.js';
-import { DelegateGate } from './services/delegateGate.js';
+import { DelegateGate } from './services/gate.js';
 import { NearClient, describeError } from './services/near.js';
 import type { ErrorResponse, HealthResponse, SupportedResponse } from './types.js';
 

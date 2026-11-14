@@ -87,7 +87,7 @@ import {
   type ToolInfo,
   type TotalsView,
 } from '../packages/sdk/src/index.js';
-import { isRecord } from '../packages/sdk/src/guards.js';
+import { isRecord, isU128, messageOf } from '../packages/sdk/src/guards.js';
 import { accountId, httpUrl, integer, required, secretKey } from './lib/config.js';
 import { tokenBalance } from './lib/near.js';
 import { inspectInnerTransfer } from '../facilitator/src/services/receipts.js';
@@ -99,15 +99,14 @@ const MAX_TGAS = 102;
 const TGAS_DIVISOR = 1e12;
 const YOCTO_PER_NEAR = 10n ** 24n;
 /** Deployment defaults matching scripts/demo.ts and facilitator/src/config.ts. */
-const DEFAULT_FACILITATOR_URL = 'http://localhost:3002';
+const FACILITATOR_URL = 'http://localhost:3002';
 const DEFAULT_RPC_URL = 'https://test.rpc.fastnear.com';
 const DEFAULT_NETWORK = 'near:testnet';
 const DEFAULT_TOOL = 'web-search';
-const DEFAULT_MAX_TIMEOUT_SECONDS = 60;
-const DEFAULT_LOOP_TIMEOUT_MS = 120_000;
+const MAX_TIMEOUT_SECS = 60;
+const LOOP_TIMEOUT_MS = 120_000;
 const HTTP_TIMEOUT_MS = 30_000;
 const TX_POLL_MS = 500;
-const U128_PATTERN = /^\d+$/;
 
 interface BenchConfig {
   facilitatorUrl: string;
@@ -223,10 +222,6 @@ interface Preflight {
   totalsBefore: TotalsView;
 }
 
-function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
-}
-
 /** Default transcript location: the workspace root, not the repo subdirectory. */
 function defaultTranscriptPath(): string {
   return resolve(fileURLToPath(new URL('../..', import.meta.url)), 'W4-NUMBERS.txt');
@@ -242,7 +237,7 @@ function loadConfig(env: NodeJS.ProcessEnv, args: readonly string[]): BenchConfi
     }
   }
   const baseUrl =
-    env.PORTICO_BENCH_BASE_URL?.trim() || env.FACILITATOR_URL?.trim() || DEFAULT_FACILITATOR_URL;
+    env.PORTICO_BENCH_BASE_URL?.trim() || env.FACILITATOR_URL?.trim() || FACILITATOR_URL;
   const network = env.PORTICO_NETWORK?.trim() || DEFAULT_NETWORK;
   if (!network.startsWith('near:')) {
     throw new Error('PORTICO_NETWORK must be a NEAR CAIP-2 id such as near:testnet');
@@ -265,20 +260,8 @@ function loadConfig(env: NodeJS.ProcessEnv, args: readonly string[]): BenchConfi
     ),
     tool,
     loops: integer(env, 'PORTICO_BENCH_LOOPS', DEFAULT_LOOP_COUNT, 1, 200),
-    maxTimeoutSeconds: integer(
-      env,
-      'PORTICO_MAX_TIMEOUT_SECONDS',
-      DEFAULT_MAX_TIMEOUT_SECONDS,
-      1,
-      3_600
-    ),
-    loopTimeoutMs: integer(
-      env,
-      'PORTICO_BENCH_LOOP_TIMEOUT_MS',
-      DEFAULT_LOOP_TIMEOUT_MS,
-      10_000,
-      600_000
-    ),
+    maxTimeoutSeconds: integer(env, 'PORTICO_MAX_TIMEOUT_SECONDS', MAX_TIMEOUT_SECS, 1, 3_600),
+    loopTimeoutMs: integer(env, 'PORTICO_BENCH_LOOP_TIMEOUT_MS', LOOP_TIMEOUT_MS, 10_000, 600_000),
     transcriptPath:
       transcriptPath === undefined || transcriptPath.length === 0
         ? defaultTranscriptPath()
@@ -368,7 +351,7 @@ function toBigInt(value: unknown, label: string): bigint {
   if (typeof value === 'number' && Number.isSafeInteger(value) && value >= 0) {
     return BigInt(value);
   }
-  if (typeof value === 'string' && U128_PATTERN.test(value)) {
+  if (typeof value === 'string' && isU128(value)) {
     return BigInt(value);
   }
   throw new Error(`${label} is not a non-negative integer: ${JSON.stringify(value)}`);

@@ -37,8 +37,11 @@ import {
   X402_SCHEME,
   X402_VERSION,
   encodeHeaderJson,
+  isAccountId,
   isRecord,
+  isU128,
   messageOf,
+  normalizeHttpUrl,
   parsePaymentSignature,
   parseSettlementResponse,
   type AcceptsEntry,
@@ -86,9 +89,6 @@ export interface PaywallDependencies {
   fetch?: PaywallFetch;
 }
 
-const ACCOUNT_ID_PATTERN = /^(?=.{2,64}$)([a-z\d]+[-_])*[a-z\d]+(\.([a-z\d]+[-_])*[a-z\d]+)*$/;
-const U128_PATTERN = /^\d+$/;
-
 const defaultFetch: PaywallFetch = (url, init) => globalThis.fetch(url, init);
 
 function required(env: NodeJS.ProcessEnv, name: string): string {
@@ -115,30 +115,25 @@ function integer(
 }
 
 function accountId(value: string, name: string): string {
-  if (!ACCOUNT_ID_PATTERN.test(value)) {
+  if (!isAccountId(value)) {
     throw new PaywallConfigError(`${name} is not a valid NEAR account id`);
   }
   return value;
 }
 
 function rawAmount(value: string, name: string): string {
-  if (!U128_PATTERN.test(value) || BigInt(value) <= 0n) {
+  if (!isU128(value) || BigInt(value) <= 0n) {
     throw new PaywallConfigError(`${name} must be a positive integer of raw FT units`);
   }
   return value;
 }
 
 function httpUrl(value: string, name: string): string {
-  let parsed: URL;
-  try {
-    parsed = new URL(value);
-  } catch {
-    throw new PaywallConfigError(`${name} is not a valid URL: ${value}`);
+  const normalized = normalizeHttpUrl(value);
+  if (normalized === null) {
+    throw new PaywallConfigError(`${name} must be a valid http or https URL: ${value}`);
   }
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-    throw new PaywallConfigError(`${name} must use http or https`);
-  }
-  return parsed.toString().replace(/\/$/, '');
+  return normalized;
 }
 
 function networkId(value: string): string {

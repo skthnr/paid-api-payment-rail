@@ -42,14 +42,22 @@ function isHeaderReader(source: HeaderSource): source is HeaderReader {
   return 'get' in source && typeof source.get === 'function';
 }
 
+function pickHeaderValue(value: string | string[] | undefined): string | null {
+  return Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
+}
+
 function readFromRecord(
   source: Record<string, string | string[] | undefined>,
   name: string
 ): string | null {
   const lower = name.toLowerCase();
-  for (const [key, value] of Object.entries(source)) {
+  const direct = source[name] ?? source[lower];
+  if (direct !== undefined) {
+    return pickHeaderValue(direct);
+  }
+  for (const key in source) {
     if (key.toLowerCase() === lower) {
-      return Array.isArray(value) ? (value[0] ?? null) : (value ?? null);
+      return pickHeaderValue(source[key]);
     }
   }
   return null;
@@ -63,15 +71,23 @@ export function encodeHeaderJson(value: unknown): string {
   return Buffer.from(JSON.stringify(value), 'utf8').toString('base64');
 }
 
-export function decodeHeaderJson<T>(value: string, headerName: string): T {
+export function decodeCanonicalBase64(value: string, label: string): Buffer {
   const trimmed = value.trim();
   if (trimmed.length === 0) {
-    throw new PaymentHeaderError(`${headerName} is empty`, headerName);
+    throw new PaymentHeaderError(`${label} is empty`, label);
+  }
+  if ((trimmed.length & 3) !== 0) {
+    throw new PaymentHeaderError(`${label} is not canonical base64`, label);
   }
   const bytes = Buffer.from(trimmed, 'base64');
   if (bytes.length === 0 || bytes.toString('base64') !== trimmed) {
-    throw new PaymentHeaderError(`${headerName} is not canonical base64`, headerName);
+    throw new PaymentHeaderError(`${label} is not canonical base64`, label);
   }
+  return bytes;
+}
+
+export function decodeHeaderJson<T>(value: string, headerName: string): T {
+  const bytes = decodeCanonicalBase64(value, headerName);
   let parsed: unknown;
   try {
     parsed = JSON.parse(bytes.toString('utf8'));
@@ -238,7 +254,7 @@ export function readPaymentRequired(response: HeaderResponse): PaymentRequired |
   return null;
 }
 
-function assertSignedDelegateEnvelope(value: unknown): string {
+function checkDelegateEnv(value: unknown): string {
   if (!isRecord(value)) {
     throw new PaymentHeaderError(
       'PAYMENT-SIGNATURE payload must be an object',
@@ -250,13 +266,13 @@ function assertSignedDelegateEnvelope(value: unknown): string {
     'payload.signedDelegateAction',
     PAYMENT_SIGNATURE_HEADER
   );
-  const bytes = Buffer.from(encoded, 'base64');
-  if (bytes.length === 0 || bytes.toString('base64') !== encoded) {
+  if (encoded.trim() !== encoded) {
     throw new PaymentHeaderError(
       'PAYMENT-SIGNATURE: signedDelegateAction must be canonical base64',
       PAYMENT_SIGNATURE_HEADER
     );
   }
+  decodeCanonicalBase64(encoded, PAYMENT_SIGNATURE_HEADER);
   return encoded;
 }
 
@@ -285,7 +301,7 @@ export function parsePaymentSignature(header: string): PaymentPayload {
       PAYMENT_SIGNATURE_HEADER
     );
   }
-  const signedDelegateAction = assertSignedDelegateEnvelope(value.payload);
+  const signedDelegateAction = checkDelegateEnv(value.payload);
   const accepted = validateAcceptsEntry(value.accepted, 0, PAYMENT_SIGNATURE_HEADER);
   const resource: ResourceInfo = { url: value.resource.url };
   if (typeof value.resource.description === 'string') {
@@ -313,7 +329,7 @@ export function buildPaymentSignature(payload: PaymentPayload): Record<string, s
     );
   }
   validateAcceptsEntry(payload.accepted, 0, PAYMENT_SIGNATURE_HEADER);
-  assertSignedDelegateEnvelope(payload.payload);
+  checkDelegateEnv(payload.payload);
   return { [PAYMENT_SIGNATURE_HEADER]: encodeHeaderJson(payload) };
 }
 
