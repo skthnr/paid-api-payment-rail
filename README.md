@@ -5,6 +5,8 @@ portico implements the x402 v2 `exact` payment scheme on NEAR for paid APIs. A b
 ```mermaid
 %%{init: {"theme":"base","themeVariables":{"fontSize":"14px"}}}%%
 sequenceDiagram
+    accTitle: portico runtime flow
+    accDescr: Payer wallet, SDK, facilitator, RPC and contracts settle one gasless x402 payment and accrue stream.
     autonumber
     participant W as payer wallet
     participant S as SDK
@@ -12,17 +14,17 @@ sequenceDiagram
     participant R as RPC
     participant T as payment-token
     participant V as revenue-split
-    rect rgb(226,238,255)
-    Note over W,V: PHASE 1 — Request paid route and challenge (402)
+    rect rgba(226,238,255,0.20)
+    Note over W,V: PHASE 1 — Challenge with 402
     S->>F: POST /quote
     F-->>S: PAYMENT-REQUIRED
     end
-    rect rgb(230,247,235)
+    rect rgba(230,247,235,0.20)
     Note over W,V: PHASE 2 — Sign payment
     S->>W: sign one NEP-366 delegate
     W-->>S: SignedDelegateAction with 1 yoctoNEAR
     end
-    rect rgb(255,244,214)
+    rect rgba(255,244,214,0.20)
     Note over W,V: PHASE 3 — Verify signature and nonce
     S->>F: POST /verify with PAYMENT-SIGNATURE
     par one pinned block hash
@@ -36,7 +38,7 @@ sequenceDiagram
     F-->>S: verified payload hash
     end
     end
-    rect rgb(243,232,255)
+    rect rgba(243,232,255,0.20)
     Note over W,V: PHASE 4 — Relay to chain
     S->>F: POST /settle
     F->>R: send delegate, relayer pays gas
@@ -51,18 +53,18 @@ sequenceDiagram
     F-->>S: settlement_pending plus outer hash
     end
     end
-    rect rgb(255,232,232)
+    rect rgba(255,232,232,0.20)
     Note over W,V: PHASE 5 — Accrue stream
     V->>V: open stream with cliff and deposit
     loop each block
     V->>V: accrued grows, paused blocks never accrue
     end
     end
-    rect rgb(224,247,250)
+    rect rgba(224,247,250,0.20)
     Note over W,V: PHASE 6 — Claim and withdraw
     V->>T: ft_transfer claimable to recipient
     end
-    rect rgb(255,248,225)
+    rect rgba(255,248,225,0.20)
     Note over W,V: PHASE 7 — Fan out events
     V-->>R: EVENT_JSON standard portico
     R-->>F: logs inside FINAL outcome
