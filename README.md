@@ -13,14 +13,17 @@ sequenceDiagram
     participant T as payment-token
     participant V as revenue-split
     rect rgb(226,238,255)
-    Note over W,V: PHASE 1 — Challenge
+    Note over W,V: PHASE 1 — Request paid route and challenge (402)
     S->>F: POST /quote
     F-->>S: PAYMENT-REQUIRED
     end
     rect rgb(230,247,235)
-    Note over W,V: PHASE 2 — Sign and verify
+    Note over W,V: PHASE 2 — Sign payment
     S->>W: sign one NEP-366 delegate
     W-->>S: SignedDelegateAction with 1 yoctoNEAR
+    end
+    rect rgb(255,244,214)
+    Note over W,V: PHASE 3 — Verify signature and nonce
     S->>F: POST /verify with PAYMENT-SIGNATURE
     par one pinned block hash
     F->>R: viewAccount, viewCode, viewAccessKey
@@ -33,8 +36,8 @@ sequenceDiagram
     F-->>S: verified payload hash
     end
     end
-    rect rgb(255,244,214)
-    Note over W,V: PHASE 3 — Relay and split
+    rect rgb(243,232,255)
+    Note over W,V: PHASE 4 — Relay to chain
     S->>F: POST /settle
     F->>R: send delegate, relayer pays gas
     R->>T: ft_transfer_call into the split
@@ -48,16 +51,19 @@ sequenceDiagram
     F-->>S: settlement_pending plus outer hash
     end
     end
-    rect rgb(243,232,255)
-    Note over W,V: PHASE 4 — Accrue and claim
+    rect rgb(255,232,232)
+    Note over W,V: PHASE 5 — Accrue stream
     V->>V: open stream with cliff and deposit
     loop each block
     V->>V: accrued grows, paused blocks never accrue
     end
+    end
+    rect rgb(224,247,250)
+    Note over W,V: PHASE 6 — Claim and withdraw
     V->>T: ft_transfer claimable to recipient
     end
-    rect rgb(255,232,232)
-    Note over W,V: PHASE 5 — Fan out events
+    rect rgb(255,248,225)
+    Note over W,V: PHASE 7 — Fan out events
     V-->>R: EVENT_JSON standard portico
     R-->>F: logs inside FINAL outcome
     end
