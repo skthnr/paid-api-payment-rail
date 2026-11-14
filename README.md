@@ -276,4 +276,4 @@ Run the near-workspaces suite on Linux x86-64/ARM64 or macOS ARM64 (WSL2 on Wind
 
 ## License and hackathon
 
-Apache-2.0. See `LICENSE`, `NOTICE`, and `ATTRIBUTION.md`. Tracks: `business`, `realworld`. Submission checklist and payload fields: `SUBMISSION-PREP.md`.
+Apache-2.0. See `LICENSE`, `NOTICE`, and `ATTRIBUTION.md`. Tracks: `realworld`, `business`. Submission checklist and payload fields: `SUBMISSION-PREP.md`.
