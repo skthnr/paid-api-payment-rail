@@ -2,7 +2,7 @@
 
 portico implements the x402 v2 `exact` payment scheme on NEAR for paid APIs. A buyer signs a NEP-366 `SignedDelegateAction` with one NEP-141 `ft_transfer_call` into a revenue-split contract. A relayer submits the delegate and pays gas plus 1 yoctoNEAR. The contract splits each sale between the developer and the platform, then appends it to a public ledger. Subscription revenue streams accrue per block for permissionless claims.
 
-License: Apache-2.0 (see `LICENSE`, `NOTICE`, and `ATTRIBUTION.md`). Tracks: `realworld`, `business`. Q-015 (second project on the same email): **eidolon** (agent village economy, tracks `games`, `agents`).
+License: Apache-2.0 (see `LICENSE`, `NOTICE`, and `ATTRIBUTION.md`). Tracks: `realworld`, `business`. Baseline: tag `pre-hackathon` at `9f6b73f`; diff `git diff pre-hackathon..hackathon-submission`. Q-015 (second project on the same email): **eidolon** (agent village economy, tracks `games`, `agents`).
 
 ```mermaid
 sequenceDiagram
