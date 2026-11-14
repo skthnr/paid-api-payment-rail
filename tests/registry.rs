@@ -383,11 +383,13 @@ async fn registry_force_deactivate_owner_only() -> Result<()> {
         "owner force deactivation",
     );
     assert!(!harness.is_tool_active("web-search").await?);
-    assert!(!harness
-        .tool_info("web-search")
-        .await?
-        .expect("registered tool")
-        .active);
+    assert!(
+        !harness
+            .tool_info("web-search")
+            .await?
+            .expect("registered tool")
+            .active
+    );
 
     let missing = harness
         .call_split(
@@ -409,12 +411,7 @@ async fn registry_rejects_invalid_tools() -> Result<()> {
     let long_name = "a".repeat(65);
 
     let empty = harness
-        .register_tool(
-            &harness.developer,
-            "",
-            harness.developer.id(),
-            1_000_000,
-        )
+        .register_tool(&harness.developer, "", harness.developer.id(), 1_000_000)
         .await?;
     expect_failure(&empty, "empty tool name");
 
@@ -429,12 +426,7 @@ async fn registry_rejects_invalid_tools() -> Result<()> {
     expect_failure(&long, "65-byte tool name");
 
     let zero_price = harness
-        .register_tool(
-            &harness.developer,
-            "free-tool",
-            harness.developer.id(),
-            0,
-        )
+        .register_tool(&harness.developer, "free-tool", harness.developer.id(), 0)
         .await?;
     expect_failure(&zero_price, "zero price");
 
@@ -462,25 +454,13 @@ async fn registry_paused_blocks_registration() -> Result<()> {
     let harness = Harness::setup().await?;
 
     let buyer_pause = harness
-        .call_split(
-            &harness.buyer,
-            "set_paused",
-            json!({"paused": true}),
-            0,
-            30,
-        )
+        .call_split(&harness.buyer, "set_paused", json!({"paused": true}), 0, 30)
         .await?;
     expect_failure(&buyer_pause, "buyer pause");
 
     must_succeed(
         &harness
-            .call_split(
-                &harness.owner,
-                "set_paused",
-                json!({"paused": true}),
-                0,
-                30,
-            )
+            .call_split(&harness.owner, "set_paused", json!({"paused": true}), 0, 30)
             .await?,
         "owner pause",
     );

@@ -10,12 +10,12 @@
 //! withdrawal.
 
 use near_sdk::json_types::U128;
-use near_sdk::{env, near, require, AccountId, Promise};
+use near_sdk::{AccountId, Promise, env, near, require};
 
-use crate::events::LedgerEvent;
-use crate::ledger::LedgerAction;
 use crate::Contract;
 use crate::ContractExt;
+use crate::events::LedgerEvent;
+use crate::ledger::LedgerAction;
 
 /// Largest platform fee the contract accepts, in basis points (50%).
 pub const MAX_FEE_BPS: u16 = 5_000;

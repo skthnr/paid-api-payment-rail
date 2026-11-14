@@ -45,7 +45,7 @@
 //! deploy/demo setups fund the contract account with a small NEAR float (for
 //! example 1 NEAR covers the default headroom and entry estimate).
 
-use near_sdk::{env, AccountId};
+use near_sdk::{AccountId, env};
 
 use crate::Contract;
 
@@ -124,9 +124,7 @@ impl Contract {
         if self.developer_balances_count.saturating_add(new_keys) > MAX_DEV_BALS {
             return false;
         }
-        self.has_pay_headroom(
-            DEV_BAL_BYTES.saturating_mul(new_keys),
-        )
+        self.has_pay_headroom(DEV_BAL_BYTES.saturating_mul(new_keys))
     }
 
     /// Returns `true` when `open_stream` may create the next stream.

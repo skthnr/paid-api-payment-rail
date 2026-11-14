@@ -1,7 +1,7 @@
 //! NEP-297 events emitted by the revenue-split contract.
 
 use near_sdk::json_types::U128;
-use near_sdk::{near, AccountId};
+use near_sdk::{AccountId, near};
 
 /// Every state transition emits exactly one of these; a compound transition
 /// emits one event per movement (`close_stream` settles an optional

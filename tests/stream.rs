@@ -8,13 +8,10 @@
 
 use anyhow::Result;
 use near_sdk::json_types::U128;
-use portico_tests::{
-    expect_failure, must_succeed, open_stream_msg, Harness, E18, ONE_YOCTO,
-};
+use portico_tests::{expect_failure, must_succeed, open_stream_msg, Harness, E18, ONE_YOCTO};
 use serde_json::json;
 
 const CLIFF_BLOCKS: u64 = 3_600;
-
 
 #[tokio::test]
 async fn stream_close_before_cliff_refunds_deposit() -> Result<()> {
@@ -51,7 +48,10 @@ async fn stream_close_before_cliff_refunds_deposit() -> Result<()> {
     );
 
     assert_eq!(harness.ft_balance(harness.developer.id()).await?, 0);
-    assert_eq!(harness.developer_balance(harness.buyer.id()).await?, deposit);
+    assert_eq!(
+        harness.developer_balance(harness.buyer.id()).await?,
+        deposit
+    );
     assert_eq!(harness.ft_balance(harness.split.id()).await?, deposit);
 
     let stream = harness.stream(1).await?.expect("stream 1");
@@ -107,9 +107,6 @@ async fn stream_close_before_cliff_refunds_deposit() -> Result<()> {
 
     Ok(())
 }
-
-
-
 
 #[tokio::test]
 async fn stream_withdraw_unaccrued_bounds_and_close_refund() -> Result<()> {
@@ -207,7 +204,10 @@ async fn stream_withdraw_unaccrued_bounds_and_close_refund() -> Result<()> {
             50,
         )
         .await?;
-    expect_failure(&too_much, "unaccrued withdrawal above the remaining deposit");
+    expect_failure(
+        &too_much,
+        "unaccrued withdrawal above the remaining deposit",
+    );
 
     must_succeed(
         &harness
@@ -223,7 +223,10 @@ async fn stream_withdraw_unaccrued_bounds_and_close_refund() -> Result<()> {
     );
 
     assert_eq!(harness.ft_balance(harness.developer.id()).await?, 0);
-    assert_eq!(harness.developer_balance(harness.buyer.id()).await?, 8 * E18);
+    assert_eq!(
+        harness.developer_balance(harness.buyer.id()).await?,
+        8 * E18
+    );
     assert_eq!(harness.ft_balance(harness.split.id()).await?, 8 * E18);
     assert_eq!(harness.stream_deposit(1).await?, 0);
     assert_eq!(harness.stream(1).await?.expect("stream 1").status, "closed");

@@ -2,7 +2,7 @@
 
 use near_sdk::json_types::U128;
 use near_sdk::store::LookupMap;
-use near_sdk::{near, AccountId};
+use near_sdk::{AccountId, near};
 
 use crate::ledger::LEDGER_RESERVE;
 

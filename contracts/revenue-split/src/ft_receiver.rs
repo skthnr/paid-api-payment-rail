@@ -25,15 +25,15 @@
 //! refunded instead.
 
 use near_sdk::json_types::U128;
-use near_sdk::{env, near, AccountId, Promise, PromiseError, PromiseOrValue};
+use near_sdk::{AccountId, Promise, PromiseError, PromiseOrValue, env, near};
 
-use crate::events::LedgerEvent;
-use crate::ext::{ext_ft, GAS_FOR_FT_RESOLVE, GAS_FOR_FT_TRANSFER, YOCTO_ONE};
-use crate::ledger::LedgerAction;
-use crate::registry::ToolInfo;
-use crate::split::{split_amount, PaymentItem, SplitView};
 use crate::Contract;
 use crate::ContractExt;
+use crate::events::LedgerEvent;
+use crate::ext::{GAS_FOR_FT_RESOLVE, GAS_FOR_FT_TRANSFER, YOCTO_ONE, ext_ft};
+use crate::ledger::LedgerAction;
+use crate::registry::ToolInfo;
+use crate::split::{PaymentItem, SplitView, split_amount};
 
 /// Largest `payments`/`tools` batch accepted in one `ft_on_transfer` message.
 ///
@@ -626,12 +626,11 @@ impl Contract {
         recipient: AccountId,
         amount: u128,
     ) -> Promise {
-        self.ft_transfer_promise(recipient, amount, None)
-            .then(
-                Self::ext(env::current_account_id())
-                    .with_static_gas(GAS_FOR_FT_RESOLVE)
-                    .on_stream_payout_done(stream_id, U128(amount)),
-            )
+        self.ft_transfer_promise(recipient, amount, None).then(
+            Self::ext(env::current_account_id())
+                .with_static_gas(GAS_FOR_FT_RESOLVE)
+                .on_stream_payout_done(stream_id, U128(amount)),
+        )
     }
 
     /// Schedules one stream refund leg followed by its restoring callback.
@@ -641,12 +640,11 @@ impl Contract {
         subscriber: AccountId,
         amount: u128,
     ) -> Promise {
-        self.ft_transfer_promise(subscriber, amount, None)
-            .then(
-                Self::ext(env::current_account_id())
-                    .with_static_gas(GAS_FOR_FT_RESOLVE)
-                    .on_stream_refund_done(stream_id, U128(amount)),
-            )
+        self.ft_transfer_promise(subscriber, amount, None).then(
+            Self::ext(env::current_account_id())
+                .with_static_gas(GAS_FOR_FT_RESOLVE)
+                .on_stream_refund_done(stream_id, U128(amount)),
+        )
     }
 }
 
@@ -722,7 +720,10 @@ mod tests {
 
     #[test]
     fn msg_rejects_empty_malformed_and_unknown_actions() {
-        assert_eq!(parse_payment_msg("   ").unwrap_err(), PaymentMsgError::Empty);
+        assert_eq!(
+            parse_payment_msg("   ").unwrap_err(),
+            PaymentMsgError::Empty
+        );
         assert!(matches!(
             parse_payment_msg("{").unwrap_err(),
             PaymentMsgError::Invalid(_)

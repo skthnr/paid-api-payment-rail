@@ -8,9 +8,7 @@
 
 use near_sdk::json_types::U128;
 use near_sdk::store::LookupMap;
-use near_sdk::{
-    env, near, require, AccountId, NearToken, PanicOnDefault, Promise, PublicKey,
-};
+use near_sdk::{AccountId, NearToken, PanicOnDefault, Promise, PublicKey, env, near, require};
 
 pub mod events;
 pub mod ext;
@@ -24,7 +22,7 @@ pub mod stream;
 use events::LedgerEvent;
 use ledger::{LedgerEntry, TotalsView};
 use registry::ToolInfo;
-use split::{SplitView, MAX_FEE_BPS};
+use split::{MAX_FEE_BPS, SplitView};
 use stream::{Stream, StreamView};
 
 #[near(contract_state)]
@@ -171,10 +169,7 @@ impl Contract {
     /// Sets the platform fee; owner only, `0..=MAX_FEE_BPS`.
     pub fn set_platform_fee(&mut self, bps: u16) {
         self.assert_owner();
-        require!(
-            bps <= MAX_FEE_BPS,
-            "platform fee exceeds MAX_FEE_BPS"
-        );
+        require!(bps <= MAX_FEE_BPS, "platform fee exceeds MAX_FEE_BPS");
         let old_fee_bps = self.platform_fee_bps;
         self.platform_fee_bps = bps;
         LedgerEvent::PlatformFeeUpdated {

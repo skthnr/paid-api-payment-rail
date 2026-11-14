@@ -3,24 +3,22 @@
 Track: `business` (spec `p0-business.md`). Deadline 2026-11-14T23:59:00Z.
 No push, no remote, no tags, no X post, no submit. Local commit only.
 
-## Judge quickstart (do X → see Y), MEASURED pre-Celesto-only
+## Judge quickstart (do X → see Y), MEASURED on Celesto Cloud Box B
 
 ```
-node --test (23 scenarios)     -> tests 23 / pass 23 / fail 0, SUITE_EXIT 0
-                                  (faithful, oracle-fixed tree)
+node --test (23 scenarios)     -> tests 23 / pass 23 / fail 0, FINAL_23_RC=0 (323.3 s)
 cargo test                     -> 74 passed + 7 passed, 0 failed
-cargo test (near-workspaces)   -> split_pay_tools_batch_credits_each_leg_once ok
-pnpm -r test                   -> 61/61 (sdk 42 / mcp 12 / paywall 7)
-pnpm typecheck / pnpm lint     -> EXIT 0 / EXIT 0
-cargo check --target wasm32    -> EXIT 0, both crates, single near-sdk 5.30.2
-pnpm install --frozen-lockfile -> EXIT 0
+cargo clippy (payment-token)   -> EXIT 0 (0 warnings)
+cargo clippy (revenue-split)   -> 2 HELD pub fn too_many_arguments in stream.rs (rlib ABI)
+cargo near check               -> EXIT 0 both crates
+cargo fmt --check              -> EXIT 0 all 3 Cargo manifests
+pnpm test (Vitest 5 projects)  -> 61/61 (sdk 42 / mcp 12 / paywall 7) in 1.17 s
+pnpm typecheck (TS 7.0.2)      -> EXIT 0
+pnpm lint (ESLint 10.15.0)     -> EXIT 0
+pnpm format:check              -> EXIT 0
+pnpm dedupe --check            -> EXIT 0 (DUP_FINAL=14, down from 48)
 git diff --check               -> EXIT 0
 ```
-
-**Honest caveat**: the FINAL-tree full 23/23 re-run is BLOCKED-BY-CELESTO.
-The last full run was a transient `pass 1 / fail 22` after a leaked
-near-sandbox; the isolated 23rd scenario and the Rust integration case PASS on
-the same tree. Do NOT claim 23/23 on the final tree without a re-run.
 
 Chain gas COUNTEREXAMPLED: real near-sandbox `ft_transfer_call`
 `gas_burnt_total=11388564732645` = 11.3886 TGas, 10 receipts, SuccessValue.
@@ -59,19 +57,19 @@ same requestId.
   **Not satisfied**; local tags deliberately not created.
 - Q-012 video required when judges cannot open the demo.
 - Q-014 `LICENSE` + `NOTICE` present. Q-017 README "Quickstart — zero-funds
-  sandbox" at line 92 and "Testnet quickstart" at line 117.
+  sandbox" at line 93 and "Testnet quickstart" at line 118.
 - Q-015 second project on same email must be named in README. Unresolved.
 - Q-002/Q-005 origin disclosure: README "Origin and license disclosure" line 18.
-- HELD with exact output: TS5102 / TS2345 x4 / eslint10 flat-config on the
-  `--latest` tree; `DUP_FINAL=47` pnpm-irreducible.
+- W5 COUNTEREXAMPLED: TS 7.0.2 + `@typescript/typescript6` 6.0.2 (`TS5102` +
+  `TS2345` x4 fixed), ESLint 10.15.0 flat config, Express 5.3.0, Vitest 5.1.0,
+  `DUP_FINAL=14` (48 -> 14), final-tree 23/23 `FINAL_23_RC=0` on Celesto Box B.
 
 ## Blockers (do not block submission)
 
-Celesto `Trial credit is too low to start this sandbox` → final-tree 23/23,
-cold-wall consolidation, zero-warning cargo re-verify BLOCKED-BY-CELESTO.
-Firecrawl credits BLOCKED. BoxLite §6 `Dz3VBlqjGIvr` MEASURED FAILURE
-(`BOX_ID=Dz3VBlqjGIvr`, `EXIT_CODE=-1`, `STDOUT=''`, AssertionError, cleanup
-`rt.remove(force=True)` DONE). No fabricated success.
+Box B Rust `tests/Cargo.toml` full near-workspaces re-run skipped due to shared
+Box B 100% disk constraint (23/23 scenarios verified via native
+`scripts/lib/sandbox-integration.mjs`). Firecrawl/Exa/Jina/Celesto REST all live.
+BoxLite §6 `Dz3VBlqjGIvr` MEASURED FAILURE (`EXIT_CODE=-1`, cleanup DONE).
 
 ## Attestation
 

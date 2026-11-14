@@ -4,13 +4,13 @@
 //! metadata with 18 decimals, the init mint, NEP-141 transfers and NEP-145
 //! storage management. Cross-contract receivers are not simulated.
 
-use near_contract_standards::fungible_token::metadata::FT_METADATA_SPEC;
 use near_contract_standards::fungible_token::FungibleTokenCore;
-use near_contract_standards::storage_management::StorageManagement;
+use near_contract_standards::fungible_token::metadata::FT_METADATA_SPEC;
 use near_contract_standards::fungible_token::metadata::FungibleTokenMetadataProvider;
+use near_contract_standards::storage_management::StorageManagement;
 use near_sdk::json_types::U128;
 use near_sdk::test_utils::VMContextBuilder;
-use near_sdk::{testing_env, AccountId, NearToken};
+use near_sdk::{AccountId, NearToken, testing_env};
 
 use crate::{Contract, TOKEN_DECIMALS, TOKEN_NAME, TOKEN_SYMBOL};
 
@@ -23,14 +23,16 @@ fn user() -> AccountId {
 }
 
 fn set_env(predecessor: &AccountId, deposit: NearToken) {
-    testing_env!(VMContextBuilder::new()
-        .current_account_id("token.portico.testnet".parse().unwrap())
-        .predecessor_account_id(predecessor.clone())
-        .signer_account_id(predecessor.clone())
-        .account_balance(NearToken::from_near(100))
-        .attached_deposit(deposit)
-        .prepaid_gas(near_sdk::Gas::from_tgas(100))
-        .build());
+    testing_env!(
+        VMContextBuilder::new()
+            .current_account_id("token.portico.testnet".parse().unwrap())
+            .predecessor_account_id(predecessor.clone())
+            .signer_account_id(predecessor.clone())
+            .account_balance(NearToken::from_near(100))
+            .attached_deposit(deposit)
+            .prepaid_gas(near_sdk::Gas::from_tgas(100))
+            .build()
+    );
 }
 
 fn deploy(total_supply: u128) -> (Contract, AccountId) {
@@ -56,8 +58,14 @@ fn metadata_is_pinned_to_eighteen_decimals() {
 #[test]
 fn init_supply_is_minted_to_the_owner() {
     let (contract, owner) = deploy(5_000_000_000_000_000_000_000_000);
-    assert_eq!(contract.ft_total_supply(), U128(5_000_000_000_000_000_000_000_000));
-    assert_eq!(contract.ft_balance_of(owner), U128(5_000_000_000_000_000_000_000_000));
+    assert_eq!(
+        contract.ft_total_supply(),
+        U128(5_000_000_000_000_000_000_000_000)
+    );
+    assert_eq!(
+        contract.ft_balance_of(owner),
+        U128(5_000_000_000_000_000_000_000_000)
+    );
     assert_eq!(contract.ft_balance_of(user()), U128(0));
 }
 
@@ -123,4 +131,3 @@ fn transfer_to_an_unregistered_account_is_rejected() {
     set_env(&owner, NearToken::from_yoctonear(1));
     contract.ft_transfer(user(), U128(250), None);
 }
-

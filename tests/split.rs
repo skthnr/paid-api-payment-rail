@@ -66,10 +66,7 @@ async fn split_batch_pays_two_developers_and_platform() -> Result<()> {
         .ft_transfer_call(
             &harness.buyer,
             100,
-            batch_msg(&[
-                (harness.developer.id(), 50),
-                (second_developer.id(), 50),
-            ]),
+            batch_msg(&[(harness.developer.id(), 50), (second_developer.id(), 50)]),
         )
         .await?;
     must_succeed(&outcome, "pay_developers_batch");
@@ -82,10 +79,7 @@ async fn split_batch_pays_two_developers_and_platform() -> Result<()> {
     assert_eq!(harness.ft_balance(second_developer.id()).await?, 0);
     assert_eq!(harness.ft_balance(harness.split.id()).await?, 100);
     assert_eq!(harness.developer_balance(harness.developer.id()).await?, 40);
-    assert_eq!(
-        harness.developer_balance(second_developer.id()).await?,
-        40
-    );
+    assert_eq!(harness.developer_balance(second_developer.id()).await?, 40);
     assert_eq!(harness.developer_balance(harness.platform.id()).await?, 20);
     assert_eq!(harness.totals().await?.total_developer_balance.0, 100);
 
@@ -107,10 +101,7 @@ async fn split_batch_pays_two_developers_and_platform() -> Result<()> {
     assert_eq!(harness.ft_balance(harness.platform.id()).await?, 20);
     assert_eq!(harness.ft_balance(harness.split.id()).await?, 0);
     assert_eq!(harness.developer_balance(harness.developer.id()).await?, 0);
-    assert_eq!(
-        harness.developer_balance(second_developer.id()).await?,
-        0
-    );
+    assert_eq!(harness.developer_balance(second_developer.id()).await?, 0);
     assert_eq!(harness.developer_balance(harness.platform.id()).await?, 0);
     assert_eq!(harness.totals().await?.total_developer_balance.0, 0);
 
@@ -324,7 +315,10 @@ async fn split_pay_tool_charges_price_and_refunds_excess() -> Result<()> {
     );
     assert_eq!(harness.ft_balance(harness.developer.id()).await?, 800_000);
     assert_eq!(harness.ft_balance(harness.split.id()).await?, 200_000);
-    assert_eq!(harness.developer_balance(harness.platform.id()).await?, 200_000);
+    assert_eq!(
+        harness.developer_balance(harness.platform.id()).await?,
+        200_000
+    );
 
     let tool = harness
         .tool_info("web-search")
@@ -352,11 +346,11 @@ async fn split_pay_tool_charges_price_and_refunds_excess() -> Result<()> {
     );
     assert_eq!(harness.ft_balance(harness.developer.id()).await?, 1_600_000);
     assert_eq!(harness.ft_balance(harness.split.id()).await?, 400_000);
-    assert_eq!(harness.developer_balance(harness.platform.id()).await?, 400_000);
     assert_eq!(
-        harness.totals().await?.settled_volume.0,
-        2 * price
+        harness.developer_balance(harness.platform.id()).await?,
+        400_000
     );
+    assert_eq!(harness.totals().await?.settled_volume.0, 2 * price);
 
     let tool = harness
         .tool_info("web-search")
@@ -451,17 +445,16 @@ async fn split_failed_payout_restores_developer_and_refunds_excess() -> Result<(
 
     let buyer_start = harness.ft_balance(harness.buyer.id()).await?;
     let outcome = harness
-        .ft_transfer_call(
-            &harness.buyer,
-            price + excess,
-            pay_tool_msg("ghost-tool"),
-        )
+        .ft_transfer_call(&harness.buyer, price + excess, pay_tool_msg("ghost-tool"))
         .await?;
     expect_handled_failure(&outcome, "failed developer payout");
 
     assert_eq!(harness.ft_balance(unlisted.id()).await?, 0);
     assert_eq!(harness.developer_balance(unlisted.id()).await?, 800_000);
-    assert_eq!(harness.developer_balance(harness.platform.id()).await?, 200_000);
+    assert_eq!(
+        harness.developer_balance(harness.platform.id()).await?,
+        200_000
+    );
     assert_eq!(
         harness.ft_balance(harness.buyer.id()).await?,
         buyer_start - price
@@ -484,13 +477,7 @@ async fn split_paused_contract_refunds_value_in() -> Result<()> {
     let harness = Harness::setup().await?;
     must_succeed(
         &harness
-            .call_split(
-                &harness.owner,
-                "set_paused",
-                json!({"paused": true}),
-                0,
-                30,
-            )
+            .call_split(&harness.owner, "set_paused", json!({"paused": true}), 0, 30)
             .await?,
         "set_paused(true)",
     );
@@ -554,9 +541,18 @@ async fn split_volume_and_balance_views_track_large_units() -> Result<()> {
     let split = harness.calculate_split(amount).await?;
     assert_eq!(split.platform.0, amount / 5);
     assert_eq!(split.developer.0, amount - amount / 5);
-    assert_eq!(harness.ft_balance(harness.developer.id()).await?, split.developer.0);
-    assert_eq!(harness.ft_balance(harness.split.id()).await?, split.platform.0);
-    assert_eq!(harness.developer_balance(harness.platform.id()).await?, split.platform.0);
+    assert_eq!(
+        harness.ft_balance(harness.developer.id()).await?,
+        split.developer.0
+    );
+    assert_eq!(
+        harness.ft_balance(harness.split.id()).await?,
+        split.platform.0
+    );
+    assert_eq!(
+        harness.developer_balance(harness.platform.id()).await?,
+        split.platform.0
+    );
 
     Ok(())
 }
@@ -586,18 +582,35 @@ async fn split_pay_tools_batch_credits_each_leg_once() -> Result<()> {
         .await?;
     must_succeed(&outcome, "pay_tools batch");
 
-    assert_eq!(harness.ft_balance(harness.buyer.id()).await?, buyer_start - total);
+    assert_eq!(
+        harness.ft_balance(harness.buyer.id()).await?,
+        buyer_start - total
+    );
     assert_eq!(harness.ft_balance(harness.split.id()).await?, total); // escrow reserve backing balances
-    assert_eq!(harness.developer_balance(harness.developer.id()).await?, 2_400_000);
-    assert_eq!(harness.developer_balance(harness.platform.id()).await?, 600_000);
+    assert_eq!(
+        harness.developer_balance(harness.developer.id()).await?,
+        2_400_000
+    );
+    assert_eq!(
+        harness.developer_balance(harness.platform.id()).await?,
+        600_000
+    );
     assert_eq!(harness.totals().await?.settled_volume.0, total);
 
     let ledger = harness.ledger(None, 100).await?;
     assert_eq!(ledger.len(), 2);
     assert!(ledger.iter().all(|entry| entry.action == "tool_call"));
-    assert!(ledger.iter().all(|entry| entry.payee == harness.developer.id().to_string()));
-    assert_eq!(harness.tool_info("web-search").await?.unwrap().total_calls, 1);
-    assert_eq!(harness.tool_info("image-gen").await?.unwrap().total_calls, 1);
+    assert!(ledger
+        .iter()
+        .all(|entry| entry.payee == harness.developer.id().to_string()));
+    assert_eq!(
+        harness.tool_info("web-search").await?.unwrap().total_calls,
+        1
+    );
+    assert_eq!(
+        harness.tool_info("image-gen").await?.unwrap().total_calls,
+        1
+    );
 
     Ok(())
 }

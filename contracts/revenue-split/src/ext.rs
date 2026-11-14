@@ -2,7 +2,7 @@
 
 use near_contract_standards::fungible_token::metadata::FungibleTokenMetadata;
 use near_sdk::json_types::U128;
-use near_sdk::{ext_contract, AccountId, Gas, NearToken};
+use near_sdk::{AccountId, Gas, NearToken, ext_contract};
 
 /// Gas reserved for each `ft_transfer` payout leg.
 pub const GAS_FOR_FT_TRANSFER: Gas = Gas::from_tgas(10);

@@ -39,12 +39,12 @@
 //! can never pay twice.
 
 use near_sdk::json_types::U128;
-use near_sdk::{env, near, require, AccountId, Promise, PromiseOrValue};
+use near_sdk::{AccountId, Promise, PromiseOrValue, env, near, require};
 
-use crate::events::LedgerEvent;
-use crate::ledger::LedgerAction;
 use crate::Contract;
 use crate::ContractExt;
+use crate::events::LedgerEvent;
+use crate::ledger::LedgerAction;
 
 /// Lowest accepted `cliff_blocks` duration, in blocks.
 pub const MIN_CLIFF_BLOCKS: u64 = 3_600;
@@ -427,10 +427,7 @@ impl Contract {
             env::predecessor_account_id() == stream.subscriber,
             "only the stream subscriber can pause it"
         );
-        require!(
-            stream.status == StreamStatus::Open,
-            "stream is not open"
-        );
+        require!(stream.status == StreamStatus::Open, "stream is not open");
         let paused_at_block = env::block_height();
         require!(
             paused_at_block >= stream.cliff_end_block,
@@ -688,10 +685,7 @@ impl Contract {
             .get(&stream_id)
             .cloned()
             .unwrap_or_else(|| env::panic_str("stream not found"));
-        require!(
-            stream.status != StreamStatus::Paused,
-            "stream is paused"
-        );
+        require!(stream.status != StreamStatus::Paused, "stream is paused");
         let now_block = env::block_height();
         let claimable = stream.claimable_at(now_block);
         if claimable == 0 {

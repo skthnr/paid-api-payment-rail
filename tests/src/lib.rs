@@ -460,14 +460,8 @@ impl Harness {
         developer: &AccountId,
         price: u128,
     ) -> Result<ExecutionFinalResult> {
-        self.register_tool_with_deposit(
-            caller,
-            name,
-            developer,
-            price,
-            REG_DEPOSIT,
-        )
-        .await
+        self.register_tool_with_deposit(caller, name, developer, price, REG_DEPOSIT)
+            .await
     }
 
     /// Registers a tool with an explicit storage deposit, for the
@@ -508,14 +502,8 @@ impl Harness {
 
     /// Claims a stream's accrual. Claims are permissionless.
     pub async fn claim(&self, caller: &Account, stream_id: u64) -> Result<ExecutionFinalResult> {
-        self.call_split(
-            caller,
-            "claim",
-            json!({"stream_id": stream_id}),
-            0,
-            50,
-        )
-        .await
+        self.call_split(caller, "claim", json!({"stream_id": stream_id}), 0, 50)
+            .await
     }
 
     /// Raw FT balance of `account`.
@@ -687,5 +675,4 @@ impl Harness {
         );
         Ok(reached)
     }
-
 }

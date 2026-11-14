@@ -20,7 +20,7 @@ use near_contract_standards::storage_management::{
     StorageBalance, StorageBalanceBounds, StorageManagement,
 };
 use near_sdk::json_types::U128;
-use near_sdk::{near, AccountId, NearToken, PanicOnDefault, PromiseOrValue};
+use near_sdk::{AccountId, NearToken, PanicOnDefault, PromiseOrValue, near};
 
 /// Token name pinned in code.
 pub const TOKEN_NAME: &str = "Portico Test Dollar";
@@ -99,7 +99,8 @@ impl FungibleTokenResolver for Contract {
         receiver_id: AccountId,
         amount: U128,
     ) -> U128 {
-        self.token.ft_resolve_transfer(sender_id, receiver_id, amount)
+        self.token
+            .ft_resolve_transfer(sender_id, receiver_id, amount)
     }
 }
 
